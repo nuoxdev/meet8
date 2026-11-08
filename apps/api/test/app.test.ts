@@ -133,7 +133,7 @@ test('email challenges expire; bad input and foreign origins are rejected; logou
   assert.equal((await f.call('GET', '/api/me', undefined, cookie)).statusCode, 401);
 });
 
-test('mail failure never exposes challenges or authenticates a user', async (t) => {
+test('code requests never expose email verification codes outside development mode', async (t) => {
   const f = await fixture();
   t.after(() => f.app.close());
   const result = await f.call('POST', '/api/auth/request', {
@@ -142,4 +142,35 @@ test('mail failure never exposes challenges or authenticates a user', async (t) 
   });
   assert.equal(result.json().code, undefined);
   assert.equal(result.json().developmentCode, undefined);
+});
+
+test('expired verification challenges and exhausted guesses cannot establish sessions', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  await f.call('POST', '/api/auth/request', { email: 'expired@example.com', name: 'Expired' });
+  const code = f.sent.at(-1)!.code;
+  await f.store.transaction((s) => {
+    s.challenges.find((c) => c.email === 'expired@example.com')!.expiresAt = Date.now() - 1;
+  });
+  assert.equal(
+    (await f.call('POST', '/api/auth/verify', { email: 'expired@example.com', code })).statusCode,
+    401,
+  );
+  await f.call('POST', '/api/auth/request', { email: 'guessed@example.com', name: 'Guessed' });
+  const valid = f.sent.at(-1)!.code;
+  for (let i = 0; i < 5; i++)
+    assert.equal(
+      (
+        await f.call('POST', '/api/auth/verify', {
+          email: 'guessed@example.com',
+          code: 'not-valid',
+        })
+      ).statusCode,
+      401,
+    );
+  assert.equal(
+    (await f.call('POST', '/api/auth/verify', { email: 'guessed@example.com', code: valid }))
+      .statusCode,
+    401,
+  );
 });

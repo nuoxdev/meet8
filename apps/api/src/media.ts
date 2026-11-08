@@ -1,4 +1,4 @@
-import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient, ServerError } from 'livekit-server-sdk';
 import type { Config } from './config.js';
 export interface Media {
   ready: boolean;
@@ -29,10 +29,18 @@ export function createMedia(c: Config): Media {
       return { url: c.livekitUrl!, token: await access.toJwt() };
     },
     async end(room) {
-      await service?.deleteRoom(room);
+      try {
+        await service?.deleteRoom(room);
+      } catch (error) {
+        if (!(error instanceof ServerError && error.code === 'not_found')) throw error;
+      }
     },
     async remove(room, identity) {
-      await service?.removeParticipant(room, identity);
+      try {
+        await service?.removeParticipant(room, identity);
+      } catch (error) {
+        if (!(error instanceof ServerError && error.code === 'not_found')) throw error;
+      }
     },
   };
 }

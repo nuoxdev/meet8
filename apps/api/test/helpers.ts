@@ -4,8 +4,9 @@ import { MemoryStore } from '../src/store.js';
 export async function fixture(options: Record<string, unknown> = {}) {
   const sent: { email: string; code: string }[] = [];
   const mediaCalls: string[] = [];
+  const store = new MemoryStore();
   const app = await buildApp({
-    store: new MemoryStore(),
+    store,
     config: {
       ownerEmail: 'owner@example.com',
       baseUrl: 'http://localhost:5173',
@@ -49,5 +50,5 @@ export async function fixture(options: Record<string, unknown> = {}) {
     assert.equal(r.statusCode, 200, r.body);
     return r.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
   }
-  return { app, call, login, sent, mediaCalls };
+  return { app, call, login, sent, mediaCalls, store };
 }

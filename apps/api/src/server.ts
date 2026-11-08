@@ -1,7 +1,6 @@
 import path from 'node:path';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import staticFiles from '@fastify/static';
+import { registerWeb } from './web.js';
 import { loadConfig } from './config.js';
 import { MemoryStore, PostgresStore } from './store.js';
 import { buildApp } from './app.js';
@@ -21,14 +20,7 @@ const app = await buildApp({
   media: createMedia(config),
 });
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web/dist');
-if (fs.existsSync(webRoot)) {
-  await app.register(staticFiles, { root: webRoot, index: false });
-  app.setNotFoundHandler((req, reply) => {
-    if (req.url.startsWith('/api/') || req.method !== 'GET')
-      return reply.code(404).send({ error: 'Not found.' });
-    return reply.type('text/html').send(fs.readFileSync(path.join(webRoot, 'index.html')));
-  });
-}
+await registerWeb(app, webRoot);
 for (const signal of ['SIGINT', 'SIGTERM'] as const)
   process.on(signal, () => {
     void app

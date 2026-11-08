@@ -1,4 +1,6 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useDialog } from './useDialog';
+import { brandStyle } from './branding';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   CalendarDays,
   Plus,
@@ -20,7 +22,7 @@ import {
 } from 'lucide-react';
 import { api, meetingLink, dateLabel, type Identity, type Organization, type Meeting } from './api';
 import { Auth, Wordmark } from './Auth';
-import { MeetingPage } from './MeetingPage';
+const MeetingPage = lazy(() => import('./MeetingPage').then((m) => ({ default: m.MeetingPage })));
 import { MeetingForm } from './MeetingForm';
 import { CompanySettings } from './CompanySettings';
 export function App() {
@@ -42,7 +44,12 @@ export function App() {
     void refresh();
   }, []);
   const code = window.location.pathname.match(/^\/o\/[^/]+\/meet\/([^/]+)\/?$/)?.[1];
-  if (code) return <MeetingPage code={code} identity={identity} onIdentity={refresh} />;
+  if (code)
+    return (
+      <Suspense fallback={<div className="loading-page">Opening your meeting…</div>}>
+        <MeetingPage code={code} identity={identity} onIdentity={refresh} />
+      </Suspense>
+    );
   if (!loaded) return <div className="loading-page">Opening Meet8…</div>;
   if (fatal)
     return (
@@ -75,6 +82,8 @@ function Dashboard({
 }) {
   const [orgId, setOrgId] = useState(() => sessionStorage.getItem('meet8-org') ?? '');
   const org = identity.organizations.find((o) => o.id === orgId) ?? identity.organizations[0];
+  const activeOrgId = useRef(org?.id);
+  activeOrgId.current = org?.id;
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [view, setView] = useState<'meetings' | 'settings'>('meetings');
   const [tab, setTab] = useState('upcoming');
@@ -94,11 +103,11 @@ function Dashboard({
     setError('');
     try {
       const result = await api<Meeting[]>(`/orgs/${org.id}/meetings`);
-      setMeetings(result);
+      if (activeOrgId.current === org.id) setMeetings(result);
     } catch (e) {
-      setError((e as Error).message);
+      if (activeOrgId.current === org.id) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (activeOrgId.current === org.id) setLoading(false);
     }
   }
   useEffect(() => {
@@ -178,7 +187,7 @@ function Dashboard({
   );
   const manager = org?.role !== 'member';
   return (
-    <div className="app-shell" style={{ '--brand': org?.color ?? '#1c5947' } as CSSProperties}>
+    <div className="app-shell" style={brandStyle(org?.color ?? '#1c5947')}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -545,11 +554,18 @@ function NewOrganization({
   onClose: () => void;
   onSaved: (id: string) => Promise<void>;
 }) {
+  const dialogRef = useDialog(onClose);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="modal-backdrop">
-      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="new-org-title">
+      <section
+        ref={dialogRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-org-title"
+      >
         <div className="modal-heading">
           <span className="eyebrow">PLATFORM ADMINISTRATION</span>
           <button autoFocus className="icon-button" onClick={onClose} aria-label="Close">

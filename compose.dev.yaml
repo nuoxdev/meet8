@@ -1,0 +1,16 @@
+name: meet8-local
+services:
+  database:
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    environment:
+      POSTGRES_DB: meet8
+      POSTGRES_USER: meet8
+      POSTGRES_PASSWORD: meet8-local-only
+    ports: ['127.0.0.1:5448:5432']
+    volumes: ['meet8-local-data:/var/lib/postgresql/data']
+  media:
+    image: livekit/livekit-server@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    command: ['--dev', '--bind', '0.0.0.0', '--node-ip', '127.0.0.1']
+    ports: ['127.0.0.1:7880:7880', '127.0.0.1:7881:7881', '127.0.0.1:7882:7882/udp']
+volumes:
+  meet8-local-data:

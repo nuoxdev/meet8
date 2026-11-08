@@ -1449,7 +1449,7 @@ nav {
 .guest-call-tools {
   color: #e9eddf;
 }
-.guest-call-tools-button {
+.guest-settings-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1461,7 +1461,7 @@ nav {
   padding: 10px 14px;
   min-height: 40px;
 }
-.guest-call-tools-button svg {
+.guest-settings-toggle svg {
   width: 18px;
   height: 18px;
   stroke: currentColor;
@@ -2094,7 +2094,7 @@ nav {
   .live-footer > .muted {
     display: none;
   }
-  .guest-call-tools-button {
+  .guest-settings-toggle {
     font-size: 10px;
     padding: 8px;
   }
@@ -2122,3 +2122,9 @@ nav {
     scroll-behavior: auto !important;
   }
 }
+/* Organization color is applied with computed accessible foreground contrast. */
+.app-shell .primary,.meeting-page .primary,.live-shell .primary{background:var(--brand-button,var(--pine));color:var(--brand-ink,#fff)}
+.app-shell .primary:hover,.meeting-page .primary:hover{filter:brightness(.94)}
+.app-shell .hero-graphic{background:color-mix(in srgb,var(--brand) 13%,#f9fbf1)}
+.meeting-page .company-avatar,.live-shell .company-avatar{background:var(--brand-button);color:var(--brand-ink)}
+.remote-first-conference{height:100%}

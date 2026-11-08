@@ -1,3 +1,4 @@
+import { brandStyle } from './branding';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import {
   Video,
@@ -10,7 +11,7 @@ import {
   ShieldCheck,
   ArrowLeft,
 } from 'lucide-react';
-import { api, dateLabel, type Identity, type Preview } from './api';
+import { api, RequestError, dateLabel, type Identity, type Preview } from './api';
 import { Auth, Wordmark } from './Auth';
 import { MeetingRoom, type RoomSession } from './MeetingRoom';
 export function MeetingPage({
@@ -62,12 +63,15 @@ export function MeetingPage({
         const s = await api<RoomSession>(`/meet/${code}/session`);
         if (stopped) return;
         setState(s);
+        setError('');
         if (s.status !== 'live') setConnection(null);
       } catch (e) {
         if (stopped) return;
         setError((e as Error).message);
-        setConnection(null);
-        setJoined(false);
+        if (e instanceof RequestError && [401, 403, 404, 410].includes(e.status)) {
+          setConnection(null);
+          setJoined(false);
+        }
       }
     };
     void check();
@@ -154,7 +158,7 @@ export function MeetingPage({
       />
     );
   return (
-    <div className="meeting-page" style={{ '--brand': p.organization.color } as CSSProperties}>
+    <div className="meeting-page" style={brandStyle(p.organization.color)}>
       <header className="public-header">
         <CompanyBrand organization={p.organization} />
         <a className="text-button" href="/">

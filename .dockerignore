@@ -1,0 +1,11 @@
+.git
+node_modules
+**/node_modules
+**/dist
+.env
+.env.*
+.superpowers
+.playwright*
+playwright-report
+test-results
+docs/*.png

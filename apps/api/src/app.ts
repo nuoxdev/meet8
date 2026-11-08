@@ -26,22 +26,20 @@ export async function buildApp(options: AppOptions) {
   const { store, config, mailer, media } = options;
   const app = Fastify({ logger: false, bodyLimit: 800_000, trustProxy: false });
   await app.register(cookie);
-  await app.register(rateLimit, { max: 300, timeWindow: '1 minute' });
+  await app.register(rateLimit, { max: 3000, timeWindow: '1 minute' });
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof ZodError)
       return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
     const status =
       error instanceof ApiError ? error.statusCode : ((error as any).statusCode ?? 500);
-    return reply
-      .code(status)
-      .send({
-        error:
-          status >= 500
-            ? 'The service could not complete this request. Please try again.'
-            : error instanceof Error
-              ? error.message
-              : 'Invalid request.',
-      });
+    return reply.code(status).send({
+      error:
+        status >= 500 && !(error instanceof ApiError)
+          ? 'The service could not complete this request. Please try again.'
+          : error instanceof Error
+            ? error.message
+            : 'Invalid request.',
+    });
   });
   app.addHook('onRequest', async (request, reply) => {
     reply
@@ -287,10 +285,15 @@ export async function buildApp(options: AppOptions) {
           throw new ApiError(409, 'Assign another manager before removing the last manager.');
         const target = s.users.find((u) => u.email === member.email);
         for (const attendee of s.attendees.filter(
-          (a) => a.orgId === member.orgId && a.userId === target?.id && !a.removed,
+          (a) => target && a.orgId === member.orgId && a.userId === target.id && !a.removed,
         )) {
           const meeting = s.meetings.find((m) => m.id === attendee.meetingId);
-          if (meeting?.status === 'live' && meeting.sessionId)
+          if (
+            meeting?.status === 'live' &&
+            meeting.sessionId &&
+            attendee.sessionId === meeting.sessionId &&
+            !attendee.leftAt
+          )
             await media.remove(`meet8-${meeting.sessionId}`, attendee.id);
           attendee.removed = true;
         }

@@ -1,3 +1,4 @@
+import { useDialog } from './useDialog';
 import { useState } from 'react';
 import { X, ArrowRight, Link2, LockKeyhole } from 'lucide-react';
 import { api, type Organization, type Meeting } from './api';
@@ -13,12 +14,14 @@ export function MeetingForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const dialogRef = useDialog(onClose);
   const [access, setAccess] = useState(meeting?.access ?? 'link');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   return (
     <div className="modal-backdrop">
       <section
+        ref={dialogRef}
         className="modal meeting-modal"
         role="dialog"
         aria-modal="true"

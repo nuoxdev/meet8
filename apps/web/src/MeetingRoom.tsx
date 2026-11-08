@@ -1,7 +1,8 @@
+import { brandStyle } from './branding';
 // LiveKitRoom composition adapted from Desk8 Connect apps/guest/src/App.tsx.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, VideoConference } from '@livekit/components-react';
-import { VideoPresets } from 'livekit-client';
+import { DisconnectReason, VideoPresets } from 'livekit-client';
 import { Hand, MessageSquare, Send, Users, X } from 'lucide-react';
 import { GuestCallTools, guestAudioCaptureDefaults } from './connect/GuestCallTools';
 import { api, type Preview } from './api';
@@ -54,10 +55,7 @@ export function MeetingRoom({
     };
   }, [code]);
   return (
-    <div
-      className="live-shell guest-live-room"
-      style={{ '--brand': state.organization.color } as CSSProperties}
-    >
+    <div className="live-shell guest-live-room" style={brandStyle(state.organization.color)}>
       <header className="live-header">
         <CompanyBrand organization={state.organization} />
         <span className="live-title">
@@ -96,10 +94,13 @@ export function MeetingRoom({
                 screenShareEncoding: { maxBitrate: 3_000_000, maxFramerate: 15 },
               },
             }}
-            onDisconnected={onDisconnected}
+            onDisconnected={(reason) => {
+              if (reason === DisconnectReason.CLIENT_INITIATED) onLeave();
+              else onDisconnected();
+            }}
             onError={(e) => setError(e.message)}
           >
-            <VideoConference className="remote-first-conference" />
+            <VideoConference className="lk-video-conference remote-first-conference" />
             <GuestCallTools />
             <RoomAudioRenderer />
           </LiveKitRoom>
