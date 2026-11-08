@@ -6,7 +6,7 @@ Implemented and checked locally; not deployed to a public hostname.
 - 4 browser tests passed: owner → manager → scheduled/branded links and invited-only gate; transient polling failure recovery; delayed cross-organization save refresh; modal keyboard focus; and two-browser real-media flow (the first browser case contains multiple checks).
 - The media test observed positive inbound microphone packet counts and decoded camera frame counts in both browsers using synthetic browser devices through local LiveKit 1.13.11. Chat, hand raising, explicit leave/rejoin, and end-for-everyone also passed.
 - TypeScript typecheck and production web/API build passed.
-- Docker image built and is being checked as a packaged server independently of Vite. Static serving has a regression test for `/`, meeting deep links, and unknown API/assets.
+- Docker image built and passed packaged-server smoke checks independently of Vite: root 200, meeting deep link 200, unknown API 404. Static serving has a regression test for `/`, meeting deep links, and unknown API/assets.
 - Production dependency audit reported zero vulnerabilities.
 - Desktop and 390 px mobile screenshots were visually inspected; meeting-room screenshot shows synthetic camera output, not real people.
 

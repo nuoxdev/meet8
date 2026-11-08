@@ -95,6 +95,7 @@ function Dashboard({
   const [copied, setCopied] = useState('');
   const [busy, setBusy] = useState('');
   async function load() {
+    if (activeOrgId.current !== org?.id) return;
     if (!org) {
       setLoading(false);
       return;

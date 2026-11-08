@@ -125,6 +125,33 @@ test('a delayed save refresh cannot replace another organization’s meeting lis
   );
   await expect(page.getByRole('link', { name: 'Open Company A private meeting' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+  // Also hold the mutation response until after another organization has loaded.
+  await page.getByLabel('Select organization').selectOption(a.id);
+  await expect(page.getByRole('link', { name: 'Open Company A private meeting' })).toBeVisible();
+  let releaseMutation!: () => void;
+  const heldMutation = new Promise<void>((r) => (releaseMutation = r));
+  let mutationEntered!: () => void;
+  const interceptedMutation = new Promise<void>((r) => (mutationEntered = r));
+  await page.route(`**/api/orgs/${a.id}/meetings/*`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    const response = await route.fetch();
+    mutationEntered();
+    await heldMutation;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await interceptedMutation;
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Select organization').selectOption(b.id);
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+  const mutationComplete = page.waitForResponse((r) => r.request().method() === 'PATCH');
+  releaseMutation();
+  await mutationComplete;
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
 });
 
 test('dialogs keep keyboard focus inside and close with Escape', async ({ page }) => {
