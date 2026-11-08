@@ -1,0 +1,27 @@
+{
+  "name": "meet8",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev -w @meet8/api\" \"npm run dev -w @meet8/web\"",
+    "build": "npm run build -w @meet8/web && npm run build -w @meet8/api",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test apps/api/test/*.test.ts",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^24.0.7",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "concurrently": "^9.2.1",
+    "prettier": "^3.9.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

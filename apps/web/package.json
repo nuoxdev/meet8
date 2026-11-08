@@ -1,0 +1,23 @@
+{
+  "name": "@meet8/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@meet8/call-audio": "0.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "@livekit/components-react": "^2.9.24",
+    "@livekit/components-styles": "^1.2.0",
+    "@livekit/track-processors": "^0.7.2",
+    "livekit-client": "^2.22.1",
+    "lucide-react": "^0.468.0"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0",
+    "@vitejs/plugin-react": "^4.7.0"
+  }
+}
