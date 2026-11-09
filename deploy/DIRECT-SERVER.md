@@ -36,3 +36,9 @@ Use the previous compatible image and release directory with the same shared env
 Release `d8e3e023fe07c5d3fcede530265540a02be8d519` has been archived to the server, built there as `meet8:d8e3e023fe07c5d3fcede530265540a02be8d519` (amd64), and smoke-tested on localhost:4198. The server build passed typecheck, 14 API tests (2 provider integration checks skipped), and web/API compilation. The temporary runtime returned health OK, root HTTP 200, and meeting deep-link HTTP 200, and was removed after verification.
 
 The permission-0600 server-only environment template is prepared with a newly generated database password. The actual hostname, owner email, SMTP and media settings remain unset. No persistent Meet8 service or database has been started, and no DNS/tunnel route has been published. Existing Desk8 services were not restarted or reconfigured.
+
+## Active pilot — 9 November 2026
+
+Application release `4792b0ee01a4413565c7025e7b3fc0c7783448be` is running on localhost:4198 with a dedicated database, private-signaling SFU and source-scoped RTC firewall guard. The confirmed hostname is public through its own tunnel. The selected owner/sender and mail credentials are stored only in the private server environment. SES SMTP authentication passed; no test mail was sent. Earlier preparation notes above describe historical stages, not current activation state.
+
+Current service names: meet8-app-1, meet8-database-1, meet8-media-1, meet8-media-firewall-1, meet8-tunnel. See TUNNEL.md and SELF-HOSTED.md for the separated networking boundaries. See docs/VERIFICATION.md for exact tested and untested scope.

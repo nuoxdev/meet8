@@ -72,3 +72,5 @@ Invitation emails are sent only through the explicit â€œSend email invitationsâ€
 Local test services can be stopped with `docker compose -f compose.dev.yaml stop`; avoid `down -v` unless you intentionally want to erase the development database.
 
 For reverse-proxy deployment, set MEET8_TRUSTED_PROXY_IP to the exact immediate proxy peer. Only that peer at hop zero is trusted; forwarding headers are ignored by default. Keep the application port localhost-only. Sign-in limits accommodate a shared workshop network, while unverified code requests have a 30-second per-address cooldown and codes retain a five-guess limit. These checks do not replace a 100-person media/application load test.
+
+The core pilot is available at https://meet8.nuox.io. See [verification boundaries](docs/VERIFICATION.md) before using it for production workshops or assuming full Connect feature parity.
