@@ -8,7 +8,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY apps apps
 COPY packages packages
-RUN npm run typecheck && npm run build
+RUN npm run typecheck && npm test && npm run build
 RUN npm prune --omit=dev
 
 FROM node:22-alpine
