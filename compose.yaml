@@ -15,6 +15,7 @@ services:
       retries: 10
     restart: unless-stopped
   app:
+    image: ${MEET8_IMAGE:-meet8:local}
     build: .
     env_file: .env
     environment:
@@ -22,7 +23,7 @@ services:
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://meet8:${POSTGRES_PASSWORD}@database:5432/meet8
     ports:
-      - 127.0.0.1:4100:4100
+      - 127.0.0.1:${MEET8_BIND_PORT:-4100}:4100
     depends_on:
       database:
         condition: service_healthy
