@@ -1,4 +1,6 @@
 import Fastify from 'fastify';
+import websocket from '@fastify/websocket';
+import { registerSignaling } from './signaling.js';
 import cookie from '@fastify/cookie';
 import rateLimit from '@fastify/rate-limit';
 import { z, ZodError } from 'zod';
@@ -25,6 +27,7 @@ export type AppOptions = { store: Store; config: Config; mailer: Mailer; media: 
 export async function buildApp(options: AppOptions) {
   const { store, config, mailer, media } = options;
   const app = Fastify({ logger: false, bodyLimit: 800_000, trustProxy: false });
+  if (config.livekitGateway) await app.register(websocket, { options: { maxPayload: 1_000_000 } });
   await app.register(cookie);
   await app.register(rateLimit, { max: 3000, timeWindow: '1 minute' });
   app.setErrorHandler((error, _req, reply) => {
@@ -56,7 +59,11 @@ export async function buildApp(options: AppOptions) {
   app.get('/health', async () => ({ ok: true }));
   app.get('/api/readiness', async () => ({
     media: media.ready,
-    email: config.devMail ? 'development' : Boolean(config.smtpHost),
+    email: config.devMail
+      ? 'development'
+      : Boolean(
+          config.mailProvider === 'ses' ? config.awsRegion && config.mailFrom : config.smtpHost,
+        ),
     development: config.devMail,
   }));
   const cookieOptions = {
@@ -302,6 +309,7 @@ export async function buildApp(options: AppOptions) {
         return { ok: true };
       }),
   );
+  await registerSignaling(app, { store, config });
   await registerMeetings(app, options);
   return app;
 }

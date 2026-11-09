@@ -26,7 +26,7 @@ export function MeetingRoom({
   onDisconnected,
 }: {
   code: string;
-  connection: { url: string; token: string };
+  connection: { url: string; token: string; iceServers?: RTCIceServer[]; relayOnly?: boolean };
   state: RoomSession;
   onLeave: () => void;
   onEnd: () => void;
@@ -82,6 +82,12 @@ export function MeetingRoom({
             token={connection.token}
             serverUrl={connection.url}
             connect
+            connectOptions={{
+              rtcConfig: {
+                iceServers: connection.iceServers,
+                iceTransportPolicy: connection.relayOnly ? 'relay' : 'all',
+              },
+            }}
             audio={false}
             video={false}
             options={{

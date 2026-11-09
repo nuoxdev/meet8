@@ -4,7 +4,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { '/api': 'http://127.0.0.1:4100', '/health': 'http://127.0.0.1:4100' },
+    proxy: {
+      '/api': 'http://127.0.0.1:4100',
+      '/media': { target: 'http://127.0.0.1:4100', ws: true },
+      '/health': 'http://127.0.0.1:4100',
+    },
   },
   build: { sourcemap: false },
 });

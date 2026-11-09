@@ -29,6 +29,8 @@ export function MeetingPage({
     url: string;
     token: string;
     sessionId: string;
+    iceServers?: RTCIceServer[];
+    relayOnly?: boolean;
   } | null>(null);
   const [name, setName] = useState('');
   const [joined, setJoined] = useState(false);

@@ -1,16 +1,32 @@
+import { turnIceServers } from './turn.js';
 import { AccessToken, RoomServiceClient, ServerError } from 'livekit-server-sdk';
 import type { Config } from './config.js';
 export interface Media {
   ready: boolean;
   cloud: boolean;
-  token(room: string, identity: string, name: string): Promise<{ url: string; token: string }>;
+  token(
+    room: string,
+    identity: string,
+    name: string,
+  ): Promise<{
+    url: string;
+    token: string;
+    iceServers?: { urls: string[]; username: string; credential: string }[];
+    relayOnly?: boolean;
+  }>;
   end(room: string): Promise<void>;
   remove(room: string, identity: string): Promise<void>;
 }
 export function createMedia(c: Config): Media {
-  const ready = Boolean(c.livekitUrl && c.livekitKey && c.livekitSecret);
+  const ready = Boolean(
+    (c.livekitGateway ? c.livekitInternalUrl : c.livekitUrl) && c.livekitKey && c.livekitSecret,
+  );
   const service = ready
-    ? new RoomServiceClient(c.livekitUrl!.replace(/^ws/, 'http'), c.livekitKey, c.livekitSecret)
+    ? new RoomServiceClient(
+        (c.livekitInternalUrl ?? c.livekitUrl)!.replace(/^ws/, 'http'),
+        c.livekitKey,
+        c.livekitSecret,
+      )
     : null;
   return {
     ready,
@@ -26,7 +42,15 @@ export function createMedia(c: Config): Media {
         canPublishData: true,
         canUpdateOwnMetadata: false,
       });
-      return { url: c.livekitUrl!, token: await access.toJwt() };
+      const publicUrl = c.livekitGateway
+        ? new URL('/media', c.baseUrl).href.replace(/^http/, 'ws')
+        : c.livekitUrl!;
+      const iceServers = turnIceServers(c, identity);
+      return {
+        url: publicUrl,
+        token: await access.toJwt(),
+        ...(iceServers.length ? { iceServers, relayOnly: true } : {}),
+      };
     },
     async end(room) {
       try {
