@@ -19,7 +19,7 @@ From the local Meet8 repository, transfer the exact committed archive over the e
 
 Confirm `MEET8_BASE_URL` and `MEET8_OWNER_EMAIL`. Set real SMTP transport and `MAIL_FROM`, dedicated media settings, a strong URL-safe `POSTGRES_PASSWORD`, `MEET8_IMAGE=meet8:<full-commit>`, and `MEET8_BIND_PORT=4198` in the shared .env. Set `NODE_ENV=production`; development-code delivery must remain off.
 
-The current production media implementation requires LiveKit Cloud for immediate participant token revocation. Existing Desk8 uses self-hosted LiveKit; those credentials must not be silently copied or relabeled as cloud. A dedicated secure self-hosted signaling/revocation implementation is separate work if all media must also run on this server.
+Self-hosted production media now uses a dedicated private-signaling service behind the Meet8 authorization gateway. See SELF-HOSTED.md; do not publish its upstream port or reuse Desk8’s media key. Cloud mode remains available as an alternative.
 
 ## Activate
 

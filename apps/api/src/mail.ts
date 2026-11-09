@@ -20,6 +20,7 @@ export function createMailer(c: Config, clients: MailClients = {}): Mailer {
           host: c.smtpHost,
           port: c.smtpPort,
           secure: c.smtpPort === 465,
+          requireTLS: c.production,
           auth: c.smtpUser ? { user: c.smtpUser, pass: c.smtpPassword } : undefined,
         })
       : null;

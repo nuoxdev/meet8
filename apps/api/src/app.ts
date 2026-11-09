@@ -26,10 +26,16 @@ const displayName = z.string().trim().min(1).max(100);
 export type AppOptions = { store: Store; config: Config; mailer: Mailer; media: Media };
 export async function buildApp(options: AppOptions) {
   const { store, config, mailer, media } = options;
-  const app = Fastify({ logger: false, bodyLimit: 800_000, trustProxy: false });
+  const app = Fastify({
+    logger: false,
+    bodyLimit: 800_000,
+    trustProxy: config.trustedProxyIP
+      ? (address, hop) => hop === 0 && address.replace(/^::ffff:/, '') === config.trustedProxyIP
+      : false,
+  });
   if (config.livekitGateway) await app.register(websocket, { options: { maxPayload: 1_000_000 } });
   await app.register(cookie);
-  await app.register(rateLimit, { max: 3000, timeWindow: '1 minute' });
+  await app.register(rateLimit, { max: 12000, timeWindow: '1 minute' });
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof ZodError)
       return reply.code(400).send({ error: error.issues[0]?.message ?? 'Invalid input.' });
@@ -75,11 +81,20 @@ export async function buildApp(options: AppOptions) {
   };
   app.post(
     '/api/auth/request',
-    { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+    { config: { rateLimit: { max: 200, timeWindow: '15 minutes' } } },
     async (request) => {
       const body = z.object({ email, name: displayName }).parse(request.body);
       const raw = code();
       await store.transaction((s) => {
+        if (
+          s.challenges.some(
+            (c) =>
+              c.email === body.email &&
+              c.expiresAt > Date.now() &&
+              c.createdAt > Date.now() - 30_000,
+          )
+        )
+          throw new ApiError(429, 'Please wait 30 seconds before requesting another code.');
         s.challenges = s.challenges.filter(
           (c) => c.expiresAt > Date.now() && c.email !== body.email,
         );
@@ -109,7 +124,7 @@ export async function buildApp(options: AppOptions) {
   );
   app.post(
     '/api/auth/verify',
-    { config: { rateLimit: { max: 30, timeWindow: '15 minutes' } } },
+    { config: { rateLimit: { max: 600, timeWindow: '15 minutes' } } },
     async (request, reply) => {
       const body = z.object({ email, code: z.string().min(1).max(20) }).parse(request.body);
       const raw = token();

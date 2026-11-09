@@ -2,6 +2,7 @@ export type Config = {
   ownerEmail: string;
   baseUrl: string;
   production: boolean;
+  trustedProxyIP?: string;
   devMail: boolean;
   port?: number;
   livekitUrl?: string;
@@ -28,6 +29,7 @@ export function loadConfig(): Config {
     ownerEmail: (e.MEET8_OWNER_EMAIL ?? '').trim().toLowerCase(),
     baseUrl: e.MEET8_BASE_URL ?? 'http://localhost:5173',
     production,
+    trustedProxyIP: e.MEET8_TRUSTED_PROXY_IP,
     devMail: !production && e.MEET8_DEV_MAIL === 'true',
     port: Number(e.PORT ?? 4100),
     databaseUrl: e.DATABASE_URL,

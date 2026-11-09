@@ -54,12 +54,12 @@ The media browser test uses two isolated browser sessions with synthetic cameras
 
 1. Confirm the hostname (`meet8.nuox.io` versus `meet8.newox.io` is pending).
 2. Configure the real owner email, HTTPS base URL, persistent PostgreSQL, SMTP and `MAIL_FROM`.
-3. Use a dedicated LiveKit Cloud project and `LIVEKIT_MODE=cloud`. LiveKit self-hosted removal does not immediately revoke issued tokens; the production startup guard disallows that mode until equivalent revocation is implemented. See [LiveKit token revocation](https://docs.livekit.io/frontends/reference/tokens-grants/).
+3. Select a dedicated LiveKit Cloud project (`LIVEKIT_MODE=cloud`) or the private self-hosted authorization gateway (`LIVEKIT_MODE=self-hosted-gateway`). Self-hosted signaling must stay inside the Docker network and only the authenticated gateway may be public. See [self-hosted deployment](deploy/SELF-HOSTED.md).
 4. Set a long URL-safe `POSTGRES_PASSWORD`, then `docker compose up --build -d`. The application listens on localhost:4100 for an HTTPS reverse proxy. The database is not publicly published.
 5. Configure DNS/TLS and proxy HTTPS traffic to localhost:4100. Preserve WebSocket support for any provider paths used by future features. Media connects directly to LiveKit via its secure endpoint and TURN fallback.
 6. Test real SMTP delivery, owner verification, two external-network participants, access revocation, logo uploads and restart behavior before inviting customers.
 
-The app refuses production startup without HTTPS, PostgreSQL and configured SMTP. `MEET8_DEV_MAIL=true` is ignored in production. Session cookies become Secure in production. No real SMTP credentials, customer records, media secrets, or Desk8 Git history are included.
+The app refuses production startup without HTTPS, PostgreSQL and configured SMTP or SES transport. `MEET8_DEV_MAIL=true` is ignored in production. Session cookies become Secure in production. No real SMTP credentials, customer records, media secrets, or Desk8 Git history are included.
 
 ## Data and operations
 
@@ -70,3 +70,5 @@ Back up with `pg_dump` using your configured connection and test restoration in 
 Invitation emails are sent only through the explicit “Send email invitations” action on a joined host’s meeting page. Membership assignment grants access by verified email; it does not silently send messages. A failed or partially completed invitation send reports how many messages were sent; do not retry blindly if duplication matters.
 
 Local test services can be stopped with `docker compose -f compose.dev.yaml stop`; avoid `down -v` unless you intentionally want to erase the development database.
+
+For reverse-proxy deployment, set MEET8_TRUSTED_PROXY_IP to the exact immediate proxy peer. Only that peer at hop zero is trusted; forwarding headers are ignored by default. Keep the application port localhost-only. Sign-in limits accommodate a shared workshop network, while unverified code requests have a 30-second per-address cooldown and codes retain a five-guess limit. These checks do not replace a 100-person media/application load test.

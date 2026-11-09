@@ -85,6 +85,46 @@ test('two browsers exchange camera and microphone media, chat, and end together'
       .poll(async () => (await mediaReceived(p)).video, { timeout: 30000 })
       .toBeGreaterThan(0);
   }
+  if (process.env.MEET8_TEST_EXPECT_RELAY === 'true') {
+    const relayPeer = process.env.MEET8_TEST_RELAY_PEER_IP ?? '';
+    for (const page of [host, guest])
+      await expect
+        .poll(
+          () =>
+            page.evaluate(async (expectedPeer) => {
+              const peers = ((window as any).__meet8TestPeers as RTCPeerConnection[]).filter(
+                (p) => p.connectionState === 'connected',
+              );
+              if (!peers.length) return false;
+              for (const peer of peers) {
+                if (peer.getConfiguration().iceTransportPolicy !== 'relay') return false;
+                const reports = await peer.getStats();
+                const selected: any[] = [];
+                reports.forEach((report) => {
+                  if (report.type === 'transport' && report.selectedCandidatePairId) {
+                    const pair = reports.get(report.selectedCandidatePairId);
+                    const candidate = reports.get(pair?.localCandidateId);
+                    if (candidate) selected.push(candidate);
+                  }
+                });
+                if (!selected.length) return false;
+                for (const candidate of selected) {
+                  // TURN traversing the office VPN can be reported as a peer-reflexive candidate.
+                  const vpnRelay =
+                    candidate.candidateType === 'prflx' &&
+                    expectedPeer &&
+                    (candidate.address ?? candidate.ip) === expectedPeer &&
+                    /^turns?:/.test(candidate.url ?? '') &&
+                    ['udp', 'tcp', 'tls'].includes(candidate.relayProtocol);
+                  if (candidate.candidateType !== 'relay' && !vpnRelay) return false;
+                }
+              }
+              return true;
+            }, relayPeer),
+          { timeout: 15000 },
+        )
+        .toBe(true);
+  }
   await host.getByLabel('Meeting message').fill('A real conversation');
   await host.getByRole('button', { name: 'Send message' }).click();
   await expect(guest.getByText('A real conversation', { exact: true })).toBeVisible();

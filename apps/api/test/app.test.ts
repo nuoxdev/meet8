@@ -174,3 +174,51 @@ test('expired verification challenges and exhausted guesses cannot establish ses
     401,
   );
 });
+
+test('configured proxy trusts only the closest forwarding hop and default mode ignores forwarding headers', async (t) => {
+  const a = await fixture({ trustedProxyIP: '127.0.0.1' });
+  const b = await fixture();
+  t.after(async () => {
+    await a.app.close();
+    await b.app.close();
+  });
+  a.app.get('/test-client-ip', (r) => ({ ip: r.ip }));
+  b.app.get('/test-client-ip', (r) => ({ ip: r.ip }));
+  const header = { 'x-forwarded-for': '198.51.100.99, 203.0.113.12' };
+  assert.equal(
+    (await a.app.inject({ url: '/test-client-ip', headers: header })).json().ip,
+    '203.0.113.12',
+  );
+  assert.notEqual(
+    (await b.app.inject({ url: '/test-client-ip', headers: header })).json().ip,
+    '203.0.113.12',
+  );
+});
+test('one workshop network can register and verify 100 distinct attendees without exhausting shared-IP sign-in limits', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  for (let i = 0; i < 100; i++) {
+    const email = `attendee${i}@example.com`;
+    const request = await f.call('POST', '/api/auth/request', { email, name: `Attendee ${i}` });
+    assert.equal(request.statusCode, 200, `request ${i}: ${request.body}`);
+    const code = f.sent.at(-1)!.code;
+    const verify = await f.call('POST', '/api/auth/verify', { email, code });
+    assert.equal(verify.statusCode, 200, `verify ${i}: ${verify.body}`);
+  }
+});
+test('repeated unverified code requests are throttled without invalidating the first code', async (t) => {
+  const f = await fixture();
+  t.after(() => f.app.close());
+  await f.call('POST', '/api/auth/request', { email: 'repeat@example.com', name: 'Repeat' });
+  const code = f.sent.at(-1)!.code;
+  assert.equal(
+    (await f.call('POST', '/api/auth/request', { email: 'repeat@example.com', name: 'Repeat' }))
+      .statusCode,
+    429,
+  );
+  assert.equal(
+    (await f.call('POST', '/api/auth/verify', { email: 'repeat@example.com', code })).statusCode,
+    200,
+  );
+  assert.equal(f.sent.length, 1);
+});
