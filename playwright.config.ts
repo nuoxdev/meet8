@@ -12,7 +12,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5173',
+    url: 'http://localhost:5173/health',
     reuseExistingServer: !process.env.CI,
     env: {
       MEET8_OWNER_EMAIL: 'owner@example.com',
