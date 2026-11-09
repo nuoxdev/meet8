@@ -13,7 +13,7 @@ Server checked 9 November 2026: existing Desk8 host `10.255.254.100`, user `admi
 
 ## Build
 
-From the local Meet8 repository, transfer the exact committed archive over the existing SSH connection. On the server, run `docker build -t meet8:<full-commit> .` in that release directory. The Dockerfile runs typecheck and the frontend/API builds; run the API suite in an intermediate build image as well. No Actions runner is involved.
+From the local Meet8 repository, transfer the exact committed archive over the existing SSH connection. On the server, run `docker build -t meet8:<full-commit> .` in that release directory. The Dockerfile runs typecheck, the API test suite, and the frontend/API builds. Provider integration tests require separately configured test services. No Actions runner is involved.
 
 ## Required settings before activation
 
@@ -30,3 +30,9 @@ Add only the confirmed hostname to the existing tunnel/reverse proxy, directed t
 ## Rollback
 
 Use the previous compatible image and release directory with the same shared environment and Compose project. Back up the database before any schema change. Do not remove volumes, alter Desk8 services, or replace its configuration to roll back Meet8.
+
+## Prepared release — 9 November 2026
+
+Release `d8e3e023fe07c5d3fcede530265540a02be8d519` has been archived to the server, built there as `meet8:d8e3e023fe07c5d3fcede530265540a02be8d519` (amd64), and smoke-tested on localhost:4198. The server build passed typecheck, 14 API tests (2 provider integration checks skipped), and web/API compilation. The temporary runtime returned health OK, root HTTP 200, and meeting deep-link HTTP 200, and was removed after verification.
+
+The permission-0600 server-only environment template is prepared with a newly generated database password. The actual hostname, owner email, SMTP and media settings remain unset. No persistent Meet8 service or database has been started, and no DNS/tunnel route has been published. Existing Desk8 services were not restarted or reconfigured.
