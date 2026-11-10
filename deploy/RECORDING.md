@@ -44,3 +44,9 @@ Files are private by default. Hosts/managers can issue a random seven-day bearer
 Official references: https://docs.livekit.io/transport/self-hosting/egress/ and https://docs.livekit.io/transport/media/ingress-egress/egress/outputs/.
 
 If a start RPC times out, Meet8 deliberately retains the starting reservation and blocks duplicate starts. A background poll reconciles matching Egress output by UUID. If Egress confirms no job ever existed, an operator must inspect the state and service logs before clearing that pending reservation; do not blindly retry or edit metadata during an active capture. Provider calls are bounded to 15 seconds.
+
+## Activated 10 November 2026
+
+Redis 8.10.3 and Egress 1.15.0 are digest-pinned. Recording bridge: 192.168.249.0/28 (checked non-overlapping). Worker source: 192.168.249.3 on br-meet8-rec; source/interface-scoped RTC allowance only. No Redis/Egress host ports. Server-only Egress config UID1001/mode0600; output directory UID1001/group1000/mode2750; app mount read-only. Worker: 6 CPU/6 GiB RAM/1 GiB shared memory.
+
+Actual two-browser capture, private playback and explicit share revocation passed through an isolated temporary app. Test files/app were removed. Desk8 runtime and recording data were not copied. This verifies integration, not event capacity or a retention/backup policy.

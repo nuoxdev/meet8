@@ -1,6 +1,6 @@
 # Verification — 10 November 2026
 
-The core application is live as a **pilot** at https://meet8.nuox.io. Running application image/source commit: `3c9233cc0c0980dc44ec08cf17c5c19d7face5a3`. This does not certify 100-person workshop capacity or full Desk8 Connect parity.
+The core application is live as a **pilot** at https://meet8.nuox.io. Running application image/source commit: `eac9b2f85fed9df51f489088577512b391f4cc4e`. This does not certify 100-person workshop capacity or full Desk8 Connect parity.
 
 ## Latest customer workshop release
 
@@ -33,3 +33,16 @@ The core application is live as a **pilot** at https://meet8.nuox.io. Running ap
 - Recording/transcripts/AI/translation/file-chat parity remains pending; see PARITY.md.
 - The first-version PostgreSQL document repository serializes operations and needs indexed/scoped repositories and retention before broad commercial scale.
 - GitHub-hosted CI was blocked by account billing; deployment and checks ran directly, without Actions.
+
+## Workshop controls and recording update — current
+
+Deployed application source/image: `eac9b2f85fed9df51f489088577512b391f4cc4e`. App is healthy. Earlier release sections above are historical.
+
+- 39 API tests passed with actual PostgreSQL/LiveKit integrations, no skips. Ten browser tests passed, including Arabic/English RTL, guest co-host controls, completed recording details after reload, live media/chat policy and tenant regressions. Server build passed typecheck, 37 tests (two external integration checks skipped), compilation and runtime dependency audit.
+- Two additional browser runs passed on an isolated ephemeral app using the real server SFU, TURN/WireGuard and Egress worker. Both browsers received microphone packets and decoded camera frames under relay-only policy. Host mute turned the guest microphone off; only the guest re-enabled it. Co-host promotion/revocation, lower hand, source restrictions and chat pause/deletion passed.
+- Real MP4 capture completed. One sample was 2,229,275 bytes, 15 seconds, H.264 1280x720 plus AAC audio. Separate-browser playback decoded video; revoked sharing denied a fresh unauthenticated request. Both synthetic files, the temporary app/environment and SSH forward were removed. No test records entered the production database.
+- Redis 8.10.3 and Egress 1.15.0 are digest-pinned on a private recording bridge, with no published host ports. The app mounts recordings read-only; the RTC allowance is limited to the worker source/interface. Meet8 media restarted only after repeated zero-participant checks; Desk8, database and tunnel were not restarted. A further zero-participant gate preceded the final app-only patch.
+- Private pre-release DB dump and environment backups retained. Additive optional fields required no destructive migration. Element8 uses /element8 while old /o/dubai meeting links remain valid.
+- Recording authorization review found and fixed revoked-member/invitee access and previous-session co-host access, with regression tests. Read-only recheck found no remaining Critical/Important issue in those boundaries.
+- Public portal and real meeting entry returned 200 without errors or horizontal overflow at 320/390/768/1280 widths in Arabic/English. Unsigned signaling returns 401; health is OK.
+- Still outstanding: 100-publisher capacity, retention/off-host recovery drills, structured device UAT, operational alerting and indexed/scoped persistence. Integration checks do not certify 100-person capacity.

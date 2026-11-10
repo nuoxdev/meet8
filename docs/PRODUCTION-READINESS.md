@@ -25,3 +25,11 @@ Run typecheck, the API suite with PostgreSQL/LiveKit integrations, the full brow
 - Recording/transcription/translation/AI remain separate capabilities; see PARITY.md.
 
 SES accepted the specifically requested real test email on 9 November after the configuration-set permission was corrected. SMTP acceptance proves provider handoff; inbox placement requires recipient confirmation.
+
+## Implemented workshop controls update
+
+Dedicated branded portals (Element8: /element8), persistent English/Arabic UI with RTL, guest co-host appointment, lower hand, remote microphone mute, participant/chat moderation, meeting lock, and independent camera/microphone/screen-share policies are implemented. Policies can be set before or during an event and are enforced by the SFU and gateway. Devices are never remotely activated.
+
+Self-hosted recording is now available with an attendee indicator, private saved meeting details and explicit seven-day revocable sharing. Primary-host authority (creator/current organization manager/platform owner) controls sharing; current co-hosts can record/view their own session. Revoked membership/invitation or a different session cannot retain recording privileges. Non-JSON proxy failures now display a recoverable message.
+
+Activating Redis-backed recording required one dedicated Meet8 SFU restart after zero-participant gates. Later UI updates replace only the app. Recording retention/off-host backup policy remains outstanding; transcription, live speech translation and AI remain separate work.
