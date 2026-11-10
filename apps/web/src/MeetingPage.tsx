@@ -53,6 +53,15 @@ export function MeetingPage({
     api<Preview>(`/meet/${code}`)
       .then((p) => {
         if (!stopped) setPreview(p);
+        // Restore private completed-meeting details for an existing co-host
+        // cookie without rejoining media or requesting device permissions.
+        if (p.status === 'ended') {
+          void api<RoomSession>(`/meet/${code}/session`)
+            .then((session) => {
+              if (!stopped && (session.canModerate ?? session.canHost)) setState(session);
+            })
+            .catch(() => {});
+        }
       })
       .catch((e) => {
         if (!stopped) setError(e.message);

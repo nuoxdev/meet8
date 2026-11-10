@@ -150,6 +150,16 @@ test('two browsers exchange camera and microphone media, chat, and end together'
   await guest.getByRole('button', { name: 'Raise hand', exact: true }).click();
   await host.getByRole('button', { name: /people$/ }).click();
   await expect(host.getByText('Meeting Guest ✋')).toBeVisible();
+  await host.getByRole('button', { name: 'Mute Meeting Guest', exact: true }).click();
+  await expect(guest.getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await guest.getByRole('button', { name: 'Microphone', exact: true }).click();
+  await expect(guest.getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   await guest.getByRole('button', { name: 'Chat', exact: true }).click();
   for (const width of [320, 390, 768, 1280]) {
     await guest.setViewportSize({ width, height: 844 });
@@ -204,14 +214,14 @@ test('two browsers exchange camera and microphone media, chat, and end together'
     )
     .toBe(false);
   await guest.getByRole('button', { name: 'Chat', exact: true }).click();
-  const messageId = (await (await guest.request.get(`/api/meet/${m.code}/chat`)).json())[0].id;
-  expect(
-    (
-      await guest.request.delete(`/api/meet/${m.code}/chat/${messageId}`, {
-        headers: { origin: new URL(host.url()).origin },
-      })
-    ).ok(),
-  ).toBe(true);
+  const message = (await (await guest.request.get(`/api/meet/${m.code}/chat`)).json())[0];
+  guest.once('dialog', (dialog) => dialog.accept());
+  await guest
+    .getByRole('button', { name: `Delete message from ${message.name}`, exact: true })
+    .click();
+  await expect
+    .poll(async () => (await (await guest.request.get(`/api/meet/${m.code}/chat`)).json()).length)
+    .toBe(0);
   await expect(host.getByText('A real conversation', { exact: true })).toHaveCount(0);
   await host.getByRole('button', { name: 'Remove co-host', exact: true }).click();
   await expect(guest.getByRole('button', { name: 'Host controls', exact: true })).toHaveCount(0);

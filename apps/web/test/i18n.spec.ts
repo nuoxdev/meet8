@@ -188,3 +188,54 @@ test('guest co-host can switch language and use RTL host controls without changi
   await expect(page.getByText('مضيف مشارك', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'إنهاء الاجتماع للجميع' })).toHaveCount(0);
 });
+
+test('a current guest co-host can reopen completed meeting recordings without joining media again', async ({
+  page,
+}) => {
+  const code = 'completed-cohost-workshop';
+  const preview = {
+    code,
+    title: 'Completed customer workshop',
+    scheduledAt: new Date().toISOString(),
+    durationMinutes: 60,
+    timeZone: 'Asia/Dubai',
+    access: 'link',
+    status: 'ended',
+    organization: { name: 'Workshop Company', slug: 'workshop', color: '#334477', logoDataUrl: '' },
+  };
+  await page.route('**/api/me', (r) => r.fulfill({ status: 401, json: { error: 'Sign in' } }));
+  await page.route(`**/api/meet/${code}`, (r) => r.fulfill({ json: preview }));
+  await page.route(`**/api/meet/${code}/session`, (r) =>
+    r.fulfill({
+      json: {
+        ...preview,
+        sessionId: 'finished-session',
+        attendee: { id: 'cohost-attendee', name: 'Guest Facilitator', raised: false },
+        participants: [],
+        canHost: false,
+        canModerate: true,
+        mediaReady: true,
+      },
+    }),
+  );
+  await page.route(`**/api/meet/${code}/recordings`, (r) =>
+    r.fulfill({
+      json: {
+        enabled: true,
+        recordings: [
+          {
+            id: 'saved-recording',
+            createdAt: new Date().toISOString(),
+            status: 'ready',
+            shared: false,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto(`/o/workshop/meet/${code}`);
+  await expect(page.getByRole('region', { name: 'Recordings', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Watch or download', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create share link', exact: true })).toHaveCount(0);
+  await expect(page.locator('.live-shell')).toHaveCount(0);
+});
