@@ -21,6 +21,8 @@ export type Config = {
   smtpPassword?: string;
   mailFrom?: string;
   databaseUrl?: string;
+  recordingEnabled?: boolean;
+  recordingDirectory?: string;
 };
 export function loadConfig(): Config {
   const e = process.env;
@@ -33,6 +35,8 @@ export function loadConfig(): Config {
     devMail: !production && e.MEET8_DEV_MAIL === 'true',
     port: Number(e.PORT ?? 4100),
     databaseUrl: e.DATABASE_URL,
+    recordingEnabled: e.MEET8_RECORDING_ENABLED === 'true',
+    recordingDirectory: e.MEET8_RECORDING_DIRECTORY ?? '/recordings',
     livekitUrl: e.LIVEKIT_URL,
     livekitKey: e.LIVEKIT_API_KEY,
     livekitSecret: e.LIVEKIT_API_SECRET,

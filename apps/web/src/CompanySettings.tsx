@@ -1,3 +1,4 @@
+import { useLanguage } from './i18n';
 import { useEffect, useState } from 'react';
 import { ArrowRight, UserPlus, Trash2 } from 'lucide-react';
 import { api, type Organization } from './api';
@@ -10,6 +11,7 @@ export function CompanySettings({
   org: Organization;
   refresh: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const [members, setMembers] = useState<Member[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -31,27 +33,29 @@ export function CompanySettings({
   }, [org.id]);
   return (
     <section className="settings-page">
-      <span className="eyebrow">MAKE IT YOURS</span>
+      <span className="eyebrow">{t('MAKE IT YOURS')}</span>
       <h1>
-        Your company.
+        {t('Your company.')}
         <br />
-        <em>Your space.</em>
+        <em>{t('Your space.')}</em>
       </h1>
-      <p className="intro">Create a consistent, professional experience for your customers.</p>
+      <p className="intro">
+        {t('Create a consistent, professional experience for your customers.')}
+      </p>
       {error && (
         <p className="error banner" role="alert">
-          {error}
+          {t(error)}
         </p>
       )}
       {notice && (
         <p className="success" role="status">
-          {notice}
+          {t(notice)}
         </p>
       )}
       <div className="settings-grid">
         <section className="settings-card">
-          <h2>Organization branding</h2>
-          <p>Customize your dashboard, workshop links, and meeting rooms.</p>
+          <h2>{t('Organization branding')}</h2>
+          <p>{t('Customize your dashboard, workshop links, and meeting rooms.')}</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -62,6 +66,7 @@ export function CompanySettings({
               try {
                 await api(`/orgs/${org.id}`, 'PATCH', {
                   name: f.get('name'),
+                  pageSlug: f.get('pageSlug'),
                   color: primary,
                   secondaryColor: secondary,
                   accentColor: accent,
@@ -78,14 +83,30 @@ export function CompanySettings({
             }}
           >
             <label>
-              Company name
+              {t('Company name')}
               <input name="name" required maxLength={100} defaultValue={org.name} />
             </label>
+            <label>
+              {t('Organization page address')}
+              <input
+                name="pageSlug"
+                required
+                maxLength={48}
+                pattern="[a-z0-9][a-z0-9-]{0,47}"
+                defaultValue={org.pageSlug ?? org.slug}
+              />
+              <small>
+                {t('Your public welcome page: {url}', {
+                  url: `${window.location.origin}/${org.pageSlug ?? org.slug}`,
+                })}
+              </small>
+            </label>
             <fieldset className="brand-palette">
-              <legend>Brand colors</legend>
+              <legend>{t('Brand colors')}</legend>
               <p>
-                Primary for main actions, secondary for supporting elements, and accent for
-                highlights. Text contrast adjusts automatically.
+                {t(
+                  'Primary for main actions, secondary for supporting elements, and accent for highlights. Text contrast adjusts automatically.',
+                )}
               </p>
               <div className="palette-inputs">
                 {(
@@ -95,10 +116,10 @@ export function CompanySettings({
                     ['Accent color', accent, setAccent],
                   ] as const
                 ).map(([label, value, update]) => (
-                  <label key={label}>
-                    {label}
+                  <label key={t(label)}>
+                    {t(label)}
                     <input
-                      aria-label={label}
+                      aria-label={t(label)}
                       type="color"
                       value={value}
                       onChange={(e) => update(e.target.value)}
@@ -110,26 +131,26 @@ export function CompanySettings({
               <div
                 className="brand-preview"
                 style={brandStyle(primary, secondary, accent)}
-                aria-label="Brand palette preview"
+                aria-label={t('Brand palette preview')}
               >
-                <span className="palette-preview-label">CUSTOMER EXPERIENCE PREVIEW</span>
-                <strong>Your next customer workshop</strong>
-                <p>A branded welcome, from invitation to conversation.</p>
+                <span className="palette-preview-label">{t('CUSTOMER EXPERIENCE PREVIEW')}</span>
+                <strong>{t('Your next customer workshop')}</strong>
+                <p>{t('A branded welcome, from invitation to conversation.')}</p>
                 <div className="preview-actions">
-                  <span className="preview-primary">Join workshop</span>
-                  <span className="preview-secondary">Workshop details</span>
-                  <span className="preview-accent">Your brand</span>
+                  <span className="preview-primary">{t('Join workshop')}</span>
+                  <span className="preview-secondary">{t('Workshop details')}</span>
+                  <span className="preview-accent">{t('Your brand')}</span>
                 </div>
               </div>
             </fieldset>
             <div className="form-grid">
               <label>
-                Default time zone
+                {t('Default time zone')}
                 <input name="timeZone" required defaultValue={org.timeZone} />
               </label>
             </div>
             <label>
-              Company logo
+              {t('Company logo')}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -145,25 +166,25 @@ export function CompanySettings({
                   reader.readAsDataURL(file);
                 }}
               />
-              <small>PNG, JPEG, or WebP. Up to 500 KB.</small>
+              <small>{t('PNG, JPEG, or WebP. Up to 500 KB.')}</small>
             </label>
             {logo && (
               <div className="logo-preview">
-                <img src={logo} alt="Company logo preview" />
+                <img src={logo} alt={t('Company logo preview')} />
                 <button className="text-button" type="button" onClick={() => setLogo('')}>
-                  Remove logo
+                  {t('Remove logo')}
                 </button>
               </div>
             )}
             <button disabled={busy} className="primary">
-              Save branding
+              {t('Save branding')}
               <ArrowRight size={16} />
             </button>
           </form>
         </section>
         <section className="settings-card">
-          <h2>Workshop hosts and managers</h2>
-          <p>Add their email, then ask them to sign in to Meet8.</p>
+          <h2>{t('Workshop hosts and managers')}</h2>
+          <p>{t('Add their email, then ask them to sign in to Meet8.')}</p>
           <form
             className="member-form"
             onSubmit={async (e) => {
@@ -188,19 +209,19 @@ export function CompanySettings({
             }}
           >
             <label>
-              Member email
-              <input type="email" required name="email" placeholder="teammate@company.com" />
+              {t('Member email')}
+              <input type="email" required name="email" placeholder={t('teammate@company.com')} />
             </label>
             <label>
-              Access level
+              {t('Access level')}
               <select name="role">
-                <option value="member">Member · host meetings</option>
-                <option value="manager">Manager · manage company</option>
+                <option value="member">{t('Member · host meetings')}</option>
+                <option value="manager">{t('Manager · manage company')}</option>
               </select>
             </label>
             <button disabled={busy} className="secondary">
               <UserPlus size={16} />
-              Add member
+              {t('Add member')}
             </button>
           </form>
           <ul className="member-list">
@@ -209,13 +230,18 @@ export function CompanySettings({
                 <span className="avatar">{m.email[0].toUpperCase()}</span>
                 <div>
                   <strong>{m.email}</strong>
-                  <small>{m.role}</small>
+                  <small>{t(m.role)}</small>
                 </div>
                 <button
                   className="icon-button"
-                  aria-label={`Remove ${m.email}`}
+                  aria-label={t('Remove {email}', { email: m.email })}
                   onClick={async () => {
-                    if (!window.confirm(`Remove ${m.email} from ${org.name}?`)) return;
+                    if (
+                      !window.confirm(
+                        t('Remove {email} from {name}?', { email: m.email, name: org.name }),
+                      )
+                    )
+                      return;
                     setError('');
                     try {
                       await api(`/orgs/${org.id}/members/${m.id}`, 'DELETE');

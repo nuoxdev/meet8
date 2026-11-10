@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 import { once } from 'node:events';
 import { WebSocket, WebSocketServer } from 'ws';
 import { fixture } from './helpers.js';
@@ -48,7 +48,13 @@ async function setup() {
   const state = (await f.call('GET', `/api/meet/${meeting.code}/session`, undefined, guest)).json();
   async function jwt(room = `meet8-${state.sessionId}`, identity = state.attendee.id, ttl = '60s') {
     const access = new AccessToken(config.livekitKey, config.livekitSecret, { identity, ttl });
-    access.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true });
+    access.addGrant({
+      room,
+      roomJoin: true,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: false,
+    });
     return access.toJwt();
   }
   return { ...f, owner, org, meeting, state, guest, jwt };
@@ -183,4 +189,36 @@ test('expired tokens, explicit leave and revoked membership or invite deny signa
     s.meetings.find((m) => m.id === f.meeting.id)!.invitees = [];
   });
   await assert.rejects(() => verifySignalAccess(f.store, config, raw));
+});
+
+test('gateway rejects stale media grants after live policy restrictions and accepts a newly limited token', async (t) => {
+  const f = await setup();
+  t.after(() => f.app.close());
+  const old = await f.jwt();
+  await f.store.transaction((s) => {
+    s.meetings.find((m) => m.id === f.meeting.id)!.settings = {
+      microphoneAccess: 'hosts',
+      cameraAccess: 'everyone',
+      screenShareAccess: 'hosts',
+      chatEnabled: false,
+      locked: false,
+    };
+  });
+  await assert.rejects(() => verifySignalAccess(f.store, config, old), /permissions|access/i);
+  const limited = new AccessToken(config.livekitKey, config.livekitSecret, {
+    identity: f.state.attendee.id,
+    ttl: '60s',
+  });
+  limited.addGrant({
+    room: `meet8-${f.state.sessionId}`,
+    roomJoin: true,
+    canPublish: true,
+    canPublishSources: [TrackSource.CAMERA],
+    canSubscribe: true,
+    canPublishData: false,
+  });
+  assert.equal(
+    (await verifySignalAccess(f.store, config, await limited.toJwt())).identity,
+    f.state.attendee.id,
+  );
 });

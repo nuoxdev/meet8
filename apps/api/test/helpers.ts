@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { buildApp } from '../src/app.js';
 import { MemoryStore } from '../src/store.js';
-export async function fixture(options: Record<string, unknown> = {}) {
+export async function fixture(
+  options: Record<string, unknown> = {},
+  mediaOverrides: Record<string, unknown> = {},
+) {
   const sent: { email: string; code: string }[] = [];
   const mediaCalls: string[] = [];
   const store = new MemoryStore();
@@ -30,6 +33,7 @@ export async function fixture(options: Record<string, unknown> = {}) {
       end: async (room: string) => {
         mediaCalls.push(room);
       },
+      ...mediaOverrides,
       remove: async (room: string, id: string) => {
         mediaCalls.push(`${room}:${id}`);
       },

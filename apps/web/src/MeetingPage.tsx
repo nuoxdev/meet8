@@ -1,3 +1,5 @@
+import { useLanguage, LanguageSwitcher } from './i18n';
+import { RecordingsPanel } from './Recordings';
 import { brandStyle } from './branding';
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import {
@@ -23,6 +25,7 @@ export function MeetingPage({
   identity: Identity | null;
   onIdentity: () => Promise<void>;
 }) {
+  const { t, language } = useLanguage();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [state, setState] = useState<RoomSession | null>(null);
   const [connection, setConnection] = useState<{
@@ -38,6 +41,7 @@ export function MeetingPage({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [noticeVariables, setNoticeVariables] = useState<Record<string, string | number>>({});
   const poll = useCallback(async () => {
     const current = await api<RoomSession>(`/meet/${code}/session`);
     setState(current);
@@ -138,9 +142,10 @@ export function MeetingPage({
     return (
       <main className="empty">
         <Wordmark />
-        <h1>{error ? 'Meeting unavailable' : 'Opening your meeting…'}</h1>
-        {error && <p role="alert">{error}</p>}
-        <a href="/">Back to Meet8</a>
+        <LanguageSwitcher />
+        <h1>{error ? t('Meeting unavailable') : t('Opening your meeting…')}</h1>
+        {error && <p role="alert">{t(error)}</p>}
+        <a href="/">{t('Back to Meet8')}</a>
       </main>
     );
   const p = state ?? preview;
@@ -149,6 +154,7 @@ export function MeetingPage({
     return (
       <MeetingRoom
         code={code}
+        onRefresh={poll}
         connection={connection}
         state={state}
         onLeave={() => void leave()}
@@ -169,19 +175,21 @@ export function MeetingPage({
       )}
     >
       <header className="public-header">
+        <LanguageSwitcher />
         <CompanyBrand organization={p.organization} />
         <a className="text-button" href="/">
-          Your workspace
+          {t('Your workspace')}
           <ArrowUpRightIcon />
         </a>
       </header>
       <main className="join-layout">
         <section className="join-intro">
-          <span className="eyebrow">HOSTED BY {p.organization.name.toUpperCase()}</span>
+          <span className="eyebrow">{t('Hosted by {name}', { name: p.organization.name })}</span>
           <h1>{p.title}</h1>
           <p className="join-time">
             <Clock size={17} />
-            {dateLabel(p.scheduledAt, p.timeZone)} · {p.durationMinutes} minutes
+            {dateLabel(p.scheduledAt, p.timeZone, language)} · {p.durationMinutes}
+            {t('minutes')}
           </p>
           <div className="camera-preview">
             <div className="preview-monogram">
@@ -189,15 +197,15 @@ export function MeetingPage({
             </div>
             <span>
               <MicOff size={14} />
-              Camera and microphone start off
+              {t('Camera and microphone start off')}
             </span>
           </div>
           <div className="join-security">
             <ShieldCheck size={16} />
             <p>
               {p.access === 'link'
-                ? 'Anyone with this link can join.'
-                : 'Access is limited to verified invited email addresses.'}
+                ? t('Anyone with this link can join.')
+                : t('Access is limited to verified invited email addresses.')}
             </p>
           </div>
         </section>
@@ -206,7 +214,7 @@ export function MeetingPage({
             <>
               <button className="text-button" onClick={() => setShowAuth(false)}>
                 <ArrowLeft size={15} />
-                Back to meeting
+                {t('Back to meeting')}
               </button>
               <Auth
                 compact
@@ -221,23 +229,23 @@ export function MeetingPage({
               {joined ? (
                 <>
                   <span className="eyebrow">
-                    {p.status === 'live' ? 'YOUR ROOM IS READY' : 'YOU’RE IN THE RIGHT PLACE'}
+                    {p.status === 'live' ? t('YOUR ROOM IS READY') : t('YOU’RE IN THE RIGHT PLACE')}
                   </span>
                   <h2>
                     {p.status === 'scheduled'
-                      ? 'Waiting for the host'
+                      ? t('Waiting for the host')
                       : p.status === 'ended'
-                        ? 'That’s a wrap.'
+                        ? t('That’s a wrap.')
                         : p.status === 'cancelled'
-                          ? 'Meeting cancelled.'
-                          : 'Ready to connect.'}
+                          ? t('Meeting cancelled.')
+                          : t('Ready to connect.')}
                   </h2>
                   <p>
                     {p.status === 'scheduled'
-                      ? 'You’ll enter automatically when the host starts this meeting.'
+                      ? t('You’ll enter automatically when the host starts this meeting.')
                       : blocked
-                        ? 'Thanks for making the time.'
-                        : 'The conversation is ready when you are.'}
+                        ? t('Thanks for making the time.')
+                        : t('The conversation is ready when you are.')}
                   </p>
                   {state?.canHost && p.status === 'scheduled' && (
                     <button
@@ -245,7 +253,7 @@ export function MeetingPage({
                       disabled={busy}
                       onClick={() => void lifecycle('start')}
                     >
-                      Start meeting
+                      {t('Start meeting')}
                       <Video size={17} />
                     </button>
                   )}
@@ -255,13 +263,15 @@ export function MeetingPage({
                       disabled={busy}
                       onClick={() => void lifecycle('restart').then(() => join())}
                     >
-                      Restart meeting
+                      {t('Restart meeting')}
                       <Video size={17} />
                     </button>
                   )}
                   {p.status === 'live' && !state?.mediaReady && (
                     <p className="error" role="alert">
-                      Audio and video are not configured. Ask your administrator to connect LiveKit.
+                      {t(
+                        'Audio and video are not configured. Ask your administrator to connect LiveKit.',
+                      )}
                     </p>
                   )}
                   {p.status === 'live' && state?.mediaReady && (
@@ -276,34 +286,34 @@ export function MeetingPage({
                         }
                       }}
                     >
-                      Connect to room
+                      {t('Connect to room')}
                       <ArrowRight size={17} />
                     </button>
                   )}
                   <button className="text-button" onClick={() => void leave()}>
-                    Leave meeting
+                    {t('Leave meeting')}
                   </button>
                 </>
               ) : (
                 <>
                   <span className="eyebrow">
-                    {blocked ? 'SEE YOU NEXT TIME' : 'WORKSHOP ACCESS'}
+                    {blocked ? t('SEE YOU NEXT TIME') : t('WORKSHOP ACCESS')}
                   </span>
                   <h2>
                     {p.status === 'ended'
-                      ? 'This meeting has ended.'
+                      ? t('This meeting has ended.')
                       : p.status === 'cancelled'
-                        ? 'This meeting was cancelled.'
-                        : 'Ready to join?'}
+                        ? t('This meeting was cancelled.')
+                        : t('Ready to join?')}
                   </h2>
                   {!blocked && (
                     <>
                       {p.access === 'invited' && !identity ? (
                         <>
-                          <p>Verify your invited email</p>
-                          <p>Sign in with the email address your host invited.</p>
+                          <p>{t('Verify your invited email')}</p>
+                          <p>{t('Sign in with the email address your host invited.')}</p>
                           <button className="primary wide" onClick={() => setShowAuth(true)}>
-                            Verify email to join
+                            {t('Verify email to join')}
                             <ArrowRight size={17} />
                           </button>
                         </>
@@ -316,31 +326,32 @@ export function MeetingPage({
                         >
                           {identity ? (
                             <p>
-                              Joining as <strong>{identity.user.name}</strong>
+                              {t('Joining as')}
+                              <strong>{identity.user.name}</strong>
                               <br />
                               <small>{identity.user.email}</small>
                             </p>
                           ) : (
                             <label>
-                              Your name
+                              {t('Your name')}
                               <input
                                 required
                                 maxLength={80}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="How should we introduce you?"
+                                placeholder={t('How should we introduce you?')}
                               />
                             </label>
                           )}
                           <button className="primary wide" disabled={busy}>
-                            {busy ? 'Joining…' : 'Join meeting'}
+                            {busy ? t('Joining…') : t('Join meeting')}
                             <ArrowRight size={17} />
                           </button>
                         </form>
                       )}
                       {!identity && p.access === 'link' && (
                         <button className="text-button" onClick={() => setShowAuth(true)}>
-                          Hosting this meeting? Sign in
+                          {t('Hosting this meeting? Sign in')}
                         </button>
                       )}
                     </>
@@ -354,13 +365,13 @@ export function MeetingPage({
               )}
               {notice && (
                 <p className="muted" role="status">
-                  {notice}
+                  {t(notice, noticeVariables)}
                 </p>
               )}
               <div className="join-divider" />
               <div className="join-foot">
                 <LockKeyhole size={16} />
-                <span>A private space, with {p.organization.name}.</span>
+                <span>{t('A private space, with {name}.', { name: p.organization.name })}</span>
               </div>
               <button
                 className="text-button"
@@ -374,7 +385,7 @@ export function MeetingPage({
                 }}
               >
                 <Copy size={14} />
-                Copy meeting link
+                {t('Copy meeting link')}
               </button>
               {state?.canHost && (
                 <button
@@ -386,22 +397,31 @@ export function MeetingPage({
                         'POST',
                         {},
                       );
-                      setNotice(`${result.sent} invitations sent.`);
+                      setNotice('{count} invitations sent.');
+                      setNoticeVariables({ count: result.sent });
                     } catch (e) {
                       setError((e as Error).message);
                     }
                   }}
                 >
-                  Send email invitations
+                  {t('Send email invitations')}
                 </button>
               )}
             </>
           )}
         </section>
       </main>
+      {state && (state.canModerate ?? state.canHost) && (
+        <RecordingsPanel
+          code={code}
+          canManage={state.canModerate ?? state.canHost}
+          canShare={state.canHost}
+          live={state.status === 'live'}
+        />
+      )}
       <footer className="public-footer">
         <Wordmark />
-        <span>Professional workshops. Meaningful connections.</span>
+        <span>{t('Professional workshops. Meaningful connections.')}</span>
       </footer>
     </div>
   );
@@ -410,8 +430,9 @@ function ArrowUpRightIcon() {
   return <ArrowRight size={15} />;
 }
 export function CompanyBrand({ organization }: { organization: Preview['organization'] }) {
+  const { t } = useLanguage();
   return (
-    <a className="company-brand" href="/">
+    <a className="company-brand" href={`/${organization.pageSlug ?? organization.slug}`}>
       <span className="company-avatar">
         {organization.logoDataUrl ? (
           <img src={organization.logoDataUrl} alt="" />
@@ -420,7 +441,7 @@ export function CompanyBrand({ organization }: { organization: Preview['organiza
         )}
       </span>
       <strong>{organization.name}</strong>
-      <span className="powered-by">on meet8</span>
+      <span className="powered-by">{t('on meet8')}</span>
     </a>
   );
 }

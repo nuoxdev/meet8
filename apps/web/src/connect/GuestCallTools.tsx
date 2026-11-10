@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n';
 import {
   callAudioCaptureDefaults,
   useCallNoiseCancellation,
@@ -14,8 +15,12 @@ const NOISE_CANCELLATION_KEY = 'meet8.call.noise-cancellation';
 const BACKGROUND_BLUR_KEY = 'meet8.call.background-blur';
 
 function readCallPreference(key: string, fallback: boolean) {
-  const value = window.localStorage.getItem(key);
-  return value === null ? fallback : value === 'true';
+  try {
+    const value = window.localStorage.getItem(key);
+    return value === null ? fallback : value === 'true';
+  } catch {
+    return fallback;
+  }
 }
 
 function writeCallPreference(key: string, value: boolean) {
@@ -31,6 +36,7 @@ export function guestAudioCaptureDefaults() {
 }
 
 function ScreenShareFullscreen() {
+  const { t } = useLanguage();
   const [tile, setTile] = useState<HTMLElement | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -72,8 +78,10 @@ function ScreenShareFullscreen() {
     <button
       type="button"
       className="guest-screen-fullscreen"
-      aria-label={fullscreen ? 'Exit shared screen fullscreen' : 'View shared screen fullscreen'}
-      title={fullscreen ? 'Exit fullscreen' : 'View shared screen fullscreen'}
+      aria-label={
+        fullscreen ? t('Exit shared screen fullscreen') : t('View shared screen fullscreen')
+      }
+      title={fullscreen ? t('Exit fullscreen') : t('View shared screen fullscreen')}
       onClick={() => void toggle()}
     >
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -89,6 +97,7 @@ function ScreenShareFullscreen() {
 }
 
 export function GuestCallTools() {
+  const { t, language } = useLanguage();
   const room = useRoomContext();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [controlBar, setControlBar] = useState<HTMLElement | null>(null);
@@ -134,16 +143,16 @@ export function GuestCallTools() {
         if (button) {
           const action =
             source === 'screen_share' && button.dataset.lkEnabled === 'true'
-              ? 'Stop sharing'
-              : label;
+              ? t('Stop sharing')
+              : t(label);
           button.setAttribute('aria-label', action);
           button.title = action;
         }
       }
       const leave = bar?.querySelector<HTMLButtonElement>('.lk-disconnect-button');
       if (leave) {
-        leave.setAttribute('aria-label', 'Leave');
-        leave.title = 'Leave meeting';
+        leave.setAttribute('aria-label', t('Leave'));
+        leave.title = t('Leave meeting');
       }
     };
     const observer = new MutationObserver(refresh);
@@ -155,7 +164,7 @@ export function GuestCallTools() {
     });
     refresh();
     return () => observer.disconnect();
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     let stopped = false;
@@ -267,7 +276,9 @@ export function GuestCallTools() {
       else setCameraId(deviceId);
     } catch {
       setError(
-        `This browser could not switch the ${kind === 'audioinput' ? 'microphone' : 'camera'}.`,
+        kind === 'audioinput'
+          ? 'This browser could not switch the microphone.'
+          : 'This browser could not switch the camera.',
       );
     }
   };
@@ -289,9 +300,9 @@ export function GuestCallTools() {
           <button
             type="button"
             className={`lk-button guest-settings-toggle ${settingsOpen ? 'on' : ''}`}
-            aria-label="Call settings"
+            aria-label={t('Call settings')}
             aria-expanded={settingsOpen}
-            title="Call settings"
+            title={t('Call settings')}
             onClick={() => setSettingsOpen((open) => !open)}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -302,15 +313,15 @@ export function GuestCallTools() {
           controlBar,
         )}
       {settingsOpen && (
-        <section className="guest-call-settings" role="dialog" aria-label="Call settings">
+        <section className="guest-call-settings" role="dialog" aria-label={t('Call settings')}>
           <header>
             <div>
-              <small>CALL SETTINGS</small>
-              <b>Audio & video</b>
+              <small>{t('CALL SETTINGS')}</small>
+              <b>{t('Audio & video')}</b>
             </div>
             <button
               type="button"
-              aria-label="Close call settings"
+              aria-label={t('Close call settings')}
               onClick={() => setSettingsOpen(false)}
             >
               ×
@@ -325,8 +336,8 @@ export function GuestCallTools() {
               onClick={() => void toggleNoiseCancellation()}
             >
               <span>
-                <b>Background noise cancellation</b>
-                <small>{noiseCancellationDescription[noiseMode]}</small>
+                <b>{t('Background noise cancellation')}</b>
+                <small>{t(noiseCancellationDescription[noiseMode])}</small>
               </span>
               <i aria-hidden="true" className={noiseCancellation ? 'on' : ''} />
             </button>
@@ -337,23 +348,23 @@ export function GuestCallTools() {
               disabled={busy || !backgroundBlurSupported}
               title={
                 backgroundBlurSupported
-                  ? 'Blur the area behind you'
-                  : 'Background blur is not supported by this browser'
+                  ? t('Blur the area behind you')
+                  : t('Background blur is not supported by this browser')
               }
               onClick={() => void toggleBackgroundBlur()}
             >
               <span>
-                <b>Background blur</b>
+                <b>{t('Background blur')}</b>
                 <small>
                   {backgroundBlurSupported
-                    ? 'Keep you clear and soften your surroundings'
-                    : 'Not supported by this browser'}
+                    ? t('Keep you clear and soften your surroundings')
+                    : t('Not supported by this browser')}
                 </small>
               </span>
               <i aria-hidden="true" className={backgroundBlur ? 'on' : ''} />
             </button>
             <label>
-              <span>Microphone</span>
+              <span>{t('Microphone')}</span>
               <select
                 value={microphoneId}
                 disabled={microphones.length === 0}
@@ -362,16 +373,16 @@ export function GuestCallTools() {
                 {microphones.length ? (
                   microphones.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Microphone ${index + 1}`}
+                      {device.label || t('Microphone {number}', { number: index + 1 })}
                     </option>
                   ))
                 ) : (
-                  <option value="default">System microphone</option>
+                  <option value="default">{t('System microphone')}</option>
                 )}
               </select>
             </label>
             <label>
-              <span>Camera</span>
+              <span>{t('Camera')}</span>
               <select
                 value={cameraId}
                 disabled={cameras.length === 0}
@@ -380,22 +391,22 @@ export function GuestCallTools() {
                 {cameras.length ? (
                   cameras.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Camera ${index + 1}`}
+                      {device.label || t('Camera {number}', { number: index + 1 })}
                     </option>
                   ))
                 ) : (
-                  <option value="default">System camera</option>
+                  <option value="default">{t('System camera')}</option>
                 )}
               </select>
             </label>
             <label
               title={
                 outputSelectionSupported
-                  ? 'Play meeting audio through this device'
-                  : 'Your browser uses the system audio-output setting'
+                  ? t('Play meeting audio through this device')
+                  : t('Your browser uses the system audio-output setting')
               }
             >
-              <span>Listen on</span>
+              <span>{t('Listen on')}</span>
               <select
                 value={outputId}
                 disabled={!outputSelectionSupported || outputs.length === 0}
@@ -404,11 +415,11 @@ export function GuestCallTools() {
                 {outputs.length ? (
                   outputs.map((device, index) => (
                     <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Audio output ${index + 1}`}
+                      {device.label || t('Audio output {number}', { number: index + 1 })}
                     </option>
                   ))
                 ) : (
-                  <option value="default">System output</option>
+                  <option value="default">{t('System output')}</option>
                 )}
               </select>
             </label>
@@ -417,7 +428,7 @@ export function GuestCallTools() {
       )}
       {error && (
         <div className="guest-call-error" role="alert">
-          {error}
+          {t(error)}
         </div>
       )}
       <ScreenShareFullscreen />

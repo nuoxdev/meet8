@@ -6,6 +6,10 @@ reconcile() {
   rule -N MEET8-MEDIA 2>/dev/null || true
   rule -C MEET8-MEDIA -p tcp --dport 7981 -j ACCEPT 2>/dev/null || rule -A MEET8-MEDIA -p tcp --dport 7981 -j ACCEPT
   rule -C MEET8-MEDIA -p udp --dport 51100:51200 -j ACCEPT 2>/dev/null || rule -A MEET8-MEDIA -p udp --dport 51100:51200 -j ACCEPT
+  # Only the dedicated recording worker may reach RTC from its private bridge.
+  if [ -n "${MEET8_EGRESS_SOURCE_IP:-}" ]; then
+    rule -C DOCKER-USER -i br-meet8-rec -s "$MEET8_EGRESS_SOURCE_IP/32" -m conntrack --ctorigdst 10.255.254.100 -j MEET8-MEDIA 2>/dev/null || rule -I DOCKER-USER 1 -i br-meet8-rec -s "$MEET8_EGRESS_SOURCE_IP/32" -m conntrack --ctorigdst 10.255.254.100 -j MEET8-MEDIA
+  fi
   first=$(rule -L DOCKER-USER --line-numbers -n | awk '$1 == "1" {print $2; exit}')
   if [ "$first" != MEET8-MEDIA ]; then
     while rule -C DOCKER-USER -i wg-desk8 -s 10.66.0.1/32 -m conntrack --ctorigdst 10.255.254.100 -j MEET8-MEDIA 2>/dev/null; do

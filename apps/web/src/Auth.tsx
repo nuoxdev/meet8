@@ -1,9 +1,11 @@
+import { useLanguage, LanguageSwitcher } from './i18n';
 import { useState, type FormEvent } from 'react';
 import { ArrowRight, Video, ShieldCheck } from 'lucide-react';
 import { api } from './api';
 export function Wordmark() {
+  const { t } = useLanguage();
   return (
-    <a className="wordmark" href="/" aria-label="Meet8 home">
+    <a className="wordmark" href="/" aria-label={t('Meet8 home')}>
       <span className="logo-mark">
         <Video size={22} />
       </span>
@@ -12,6 +14,7 @@ export function Wordmark() {
   );
 }
 export function Auth({ onDone, compact = false }: { onDone: () => void; compact?: boolean }) {
+  const { t } = useLanguage();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -44,16 +47,16 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
         <>
           <header className="public-header">
             <Wordmark />
-            <span>Good conversations start here.</span>
+            <span>{t('Good conversations start here.')}</span>
           </header>
           <div className="auth-art">
-            <span className="eyebrow">BUILT FOR CUSTOMER CONNECTIONS</span>
+            <span className="eyebrow">{t('BUILT FOR CUSTOMER CONNECTIONS')}</span>
             <h1>
-              Bring customers
+              {t('Bring customers')}
               <br />
-              together for
+              {t('together for')}
               <br />
-              <em>what’s next.</em>
+              <em>{t('what’s next.')}</em>
             </h1>
             <div className="orbit-art" aria-hidden="true">
               <div />
@@ -62,51 +65,52 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
               <span>8</span>
             </div>
             <p>
-              Your expertise. Your brand.
+              {t('Your expertise. Your brand.')}
               <br />
-              Professional workshops and meetings, in one link.
+              {t('Professional workshops and meetings, in one link.')}
             </p>
           </div>
         </>
       )}
       <section className="auth-card">
-        <span className="eyebrow">WELCOME TO MEET8</span>
-        <h2>{sent ? 'Check your inbox.' : 'Welcome to Meet8.'}</h2>
+        <LanguageSwitcher />
+        <span className="eyebrow">{t('WELCOME TO MEET8')}</span>
+        <h2>{sent ? t('Check your inbox.') : t('Welcome to Meet8.')}</h2>
         <p>
           {sent
-            ? `We sent a six-digit code to ${email}.`
-            : 'Sign in or create your account with your email.'}
+            ? t('We sent a six-digit code to {email}.', { email })
+            : t('Sign in or create your account with your email.')}
         </p>
         <form onSubmit={submit}>
           {!sent ? (
             <>
               <label>
-                Your name
+                {t('Your name')}
                 <input
                   required
                   maxLength={100}
                   autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Alex Morgan"
+                  placeholder={t('Alex Morgan')}
                 />
               </label>
               <label>
-                Email address
+                {t('Email address')}
                 <input
                   required
                   type="email"
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
+                  placeholder={t('you@company.com')}
                 />
               </label>
             </>
           ) : (
             <>
               <label>
-                Verification code
+                {t('Verification code')}
                 <input
                   required
                   inputMode="numeric"
@@ -114,13 +118,13 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
                   maxLength={6}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="000000"
+                  placeholder={t('000000')}
                   autoFocus
                 />
               </label>
               {devCode && (
                 <aside className="dev-note">
-                  Development email delivery · code{' '}
+                  {t('Development email delivery · code')}{' '}
                   <strong data-testid="development-code">{devCode}</strong>
                 </aside>
               )}
@@ -128,11 +132,11 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
           )}
           {error && (
             <p className="error" role="alert">
-              {error}
+              {t(error)}
             </p>
           )}
           <button className="primary wide" disabled={busy}>
-            {busy ? 'Please wait…' : sent ? 'Verify and continue' : 'Send sign-in code'}
+            {busy ? t('Please wait…') : sent ? t('Verify and continue') : t('Send sign-in code')}
             <ArrowRight size={17} />
           </button>
           {sent && (
@@ -144,13 +148,13 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
                 setError('');
               }}
             >
-              Use a different email or request a new code
+              {t('Use a different email or request a new code')}
             </button>
           )}
         </form>
         <div className="auth-footnote">
           <ShieldCheck size={17} />
-          <span>Organization access is managed by your company.</span>
+          <span>{t('Organization access is managed by your company.')}</span>
         </div>
       </section>
     </div>

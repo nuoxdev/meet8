@@ -1,3 +1,8 @@
+import { RecordingsPanel } from './Recordings';
+import { MeetingSettingsEditor } from './MeetingControls';
+import { SharedRecording } from './Recordings';
+import { OrganizationPage } from './OrganizationPage';
+import { useLanguage, LanguageSwitcher } from './i18n';
 import { useDialog } from './useDialog';
 import { brandStyle } from './branding';
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -26,6 +31,7 @@ const MeetingPage = lazy(() => import('./MeetingPage').then((m) => ({ default: m
 import { MeetingForm } from './MeetingForm';
 import { CompanySettings } from './CompanySettings';
 export function App() {
+  const { t, language } = useLanguage();
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [fatal, setFatal] = useState('');
@@ -43,20 +49,25 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, []);
+  const recordingToken = window.location.pathname.match(/^\/recordings\/([^/]+)\/?$/)?.[1];
+  if (recordingToken) return <SharedRecording token={recordingToken} />;
+  const organizationSlug = window.location.pathname.match(/^\/([a-z0-9][a-z0-9-]{0,47})\/?$/)?.[1];
+  if (organizationSlug && !['recordings'].includes(organizationSlug))
+    return <OrganizationPage slug={organizationSlug} />;
   const code = window.location.pathname.match(/^\/o\/[^/]+\/meet\/([^/]+)\/?$/)?.[1];
   if (code)
     return (
-      <Suspense fallback={<div className="loading-page">Opening your meeting…</div>}>
+      <Suspense fallback={<div className="loading-page">{t('Opening your meeting…')}</div>}>
         <MeetingPage code={code} identity={identity} onIdentity={refresh} />
       </Suspense>
     );
-  if (!loaded) return <div className="loading-page">Opening Meet8…</div>;
+  if (!loaded) return <div className="loading-page">{t('Opening Meet8…')}</div>;
   if (fatal)
     return (
       <div className="empty">
-        <h1>Meet8 is unavailable</h1>
-        <p role="alert">{fatal}</p>
-        <button onClick={() => void refresh()}>Try again</button>
+        <h1>{t('Meet8 is unavailable')}</h1>
+        <p role="alert">{t(fatal)}</p>
+        <button onClick={() => void refresh()}>{t('Try again')}</button>
       </div>
     );
   if (!identity) return <Auth onDone={refresh} />;
@@ -80,6 +91,7 @@ function Dashboard({
   refresh: () => Promise<void>;
   onLogout: () => Promise<void>;
 }) {
+  const { t, language } = useLanguage();
   const [orgId, setOrgId] = useState(() => sessionStorage.getItem('meet8-org') ?? '');
   const org = identity.organizations.find((o) => o.id === orgId) ?? identity.organizations[0];
   const activeOrgId = useRef(org?.id);
@@ -156,7 +168,7 @@ function Dashboard({
     setError('');
     try {
       const m = await api<Meeting>(`/orgs/${org.id}/meetings`, 'POST', {
-        title: `${identity.user.name.split(' ')[0]}’s meeting`,
+        title: t('{name}’s meeting', { name: identity.user.name.split(' ')[0] }),
         description: '',
         scheduledAt: new Date().toISOString(),
         durationMinutes: 60,
@@ -176,7 +188,7 @@ function Dashboard({
       setCopied(m.id);
       window.setTimeout(() => setCopied(''), 2200);
     } catch {
-      setError('Could not copy the link. Open the meeting and copy its browser address.');
+      setError(t('Could not copy the link. Open the meeting and copy its browser address.'));
     }
   }
   const shown = meetings.filter(
@@ -193,12 +205,12 @@ function Dashboard({
       style={brandStyle(org?.color ?? '#1c5947', org?.secondaryColor, org?.accentColor)}
     >
       <a className="skip-link" href="#main">
-        Skip to content
+        {t('Skip to content')}
       </a>
       <aside className="sidebar">
         <Wordmark />
         <div className="workspace">
-          <label htmlFor="org-select">YOUR WORKSPACE</label>
+          <label htmlFor="org-select">{t('YOUR WORKSPACE')}</label>
           <div className="org-select">
             <span className="company-avatar">
               {org?.logoDataUrl ? (
@@ -209,11 +221,11 @@ function Dashboard({
             </span>
             <select
               id="org-select"
-              aria-label="Select organization"
+              aria-label={t('Select organization')}
               value={org?.id ?? ''}
               onChange={(e) => setOrgId(e.target.value)}
             >
-              {!org && <option value="">No organization</option>}
+              {!org && <option value="">{t('No organization')}</option>}
               {identity.organizations.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
@@ -223,13 +235,13 @@ function Dashboard({
             <ChevronDown size={15} />
           </div>
         </div>
-        <nav aria-label="Workspace">
+        <nav aria-label={t('Workspace')}>
           <button
             className={view === 'meetings' ? 'nav-item active' : 'nav-item'}
             onClick={() => setView('meetings')}
           >
             <CalendarDays size={19} />
-            Meetings
+            {t('Meetings')}
             <span>
               {meetings.filter((m) => m.status === 'live' || m.status === 'scheduled').length}
             </span>
@@ -240,21 +252,23 @@ function Dashboard({
               onClick={() => setView('settings')}
             >
               <Settings size={19} />
-              Organization
+              {t('Organization')}
             </button>
           )}
           {identity.platformAdmin && (
             <button className="nav-item" onClick={() => setNewOrg(true)}>
               <Building2 size={19} />
-              New organization
+              {t('New organization')}
             </button>
           )}
         </nav>
         <div className="sidebar-note">
           <span className="tiny-orbit">✳</span>
-          <h3>Professional workshops. Your brand.</h3>
+          <h3>{t('Professional workshops. Your brand.')}</h3>
           <p>
-            Host customer workshops and meetings in a branded experience built around your business.
+            {t(
+              'Host customer workshops and meetings in a branded experience built around your business.',
+            )}
           </p>
         </div>
         <div className="profile">
@@ -265,8 +279,8 @@ function Dashboard({
           </div>
           <button
             className="icon-button"
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={t('Sign out')}
+            title={t('Sign out')}
             onClick={() => void onLogout().catch((e) => setError(e.message))}
           >
             <LogOut size={17} />
@@ -275,24 +289,26 @@ function Dashboard({
       </aside>
       <div className="app-main">
         <header className="topbar">
+          <LanguageSwitcher />
           <span>
-            {org?.name ?? 'Your account'}
+            {org?.name ?? t('Your account')}
             <span className="breadcrumb">
               {' '}
-              / {view === 'settings' ? 'Organization' : 'Meetings'}
+              / {view === 'settings' ? t('Organization') : t('Meetings')}
             </span>
           </span>
           <span className="topbar-label">
-            <span className="status-dot" /> CUSTOMER WORKSHOPS & MEETINGS
+            <span className="status-dot" />
+            {t('CUSTOMER WORKSHOPS & MEETINGS')}
           </span>
         </header>
         <main id="main">
           {error && (
             <div className="error banner" role="alert">
-              {error}
+              {t(error)}
               <button
                 className="icon-button"
-                aria-label="Dismiss error"
+                aria-label={t('Dismiss error')}
                 onClick={() => setError('')}
               >
                 <X size={16} />
@@ -301,20 +317,22 @@ function Dashboard({
           )}
           {!org ? (
             <section className="empty welcome-empty">
-              <span className="eyebrow">YOU’RE IN</span>
+              <span className="eyebrow">{t('YOU’RE IN')}</span>
               <h1>
-                Your conversations
+                {t('Your conversations')}
                 <br />
-                start with a company.
+                {t('start with a company.')}
               </h1>
               <p>
                 {identity.platformAdmin
-                  ? 'Create your first organization and choose someone to manage it.'
-                  : 'Your account is ready. Ask your organization manager to invite this email address.'}
+                  ? t('Create your first organization and choose someone to manage it.')
+                  : t(
+                      'Your account is ready. Ask your organization manager to invite this email address.',
+                    )}
               </p>
               {identity.platformAdmin && (
                 <button className="primary" onClick={() => setNewOrg(true)}>
-                  Create an organization
+                  {t('Create an organization')}
                   <Plus size={17} />
                 </button>
               )}
@@ -325,16 +343,16 @@ function Dashboard({
             <>
               <section className="dashboard-hero">
                 <div>
-                  <span className="eyebrow">A GOOD DAY TO CONNECT</span>
+                  <span className="eyebrow">{t('A GOOD DAY TO CONNECT')}</span>
                   <h1>
-                    Your next
+                    {t('Your next')}
                     <br />
-                    <em>conversation.</em>
+                    <em>{t('conversation.')}</em>
                   </h1>
                   <p>
-                    Bring the right people into the same room.
+                    {t('Bring the right people into the same room.')}
                     <br />
-                    We’ll take care of the distance.
+                    {t('We’ll take care of the distance.')}
                   </p>
                   <div className="hero-actions">
                     <button
@@ -343,46 +361,46 @@ function Dashboard({
                       onClick={() => void instant()}
                     >
                       <Video size={18} />
-                      Start instant meeting
+                      {t('Start instant meeting')}
                       <ArrowUpRight size={17} />
                     </button>
                     <button className="secondary" onClick={() => setForm('new')}>
                       <Plus size={18} />
-                      Schedule a meeting
+                      {t('Schedule a meeting')}
                     </button>
                   </div>
                 </div>
                 <div className="hero-graphic" aria-hidden="true">
                   <div className="graphic-caption">
-                    MAKE SPACE FOR
+                    {t('MAKE SPACE FOR')}
                     <br />
-                    WHAT COMES NEXT.
+                    {t('WHAT COMES NEXT.')}
                   </div>
                   <div className="graphic-circle one" />
                   <div className="graphic-circle two" />
                   <div className="graphic-cross">✳</div>
-                  <span className="graphic-foot">LESS DISTANCE. MORE POSSIBILITY.</span>
+                  <span className="graphic-foot">{t('LESS DISTANCE. MORE POSSIBILITY.')}</span>
                 </div>
               </section>
               <section className="meetings-section">
                 <div className="section-heading">
                   <div>
-                    <span className="eyebrow">YOUR CALENDAR, SIMPLIFIED</span>
-                    <h2>Meetings</h2>
+                    <span className="eyebrow">{t('YOUR CALENDAR, SIMPLIFIED')}</span>
+                    <h2>{t('Meetings')}</h2>
                   </div>
                   <button className="text-button" onClick={() => setForm('new')}>
-                    New meeting
+                    {t('New meeting')}
                     <Plus size={17} />
                   </button>
                 </div>
                 <div className="list-tools">
-                  <div className="tabs" role="group" aria-label="Meeting list">
+                  <div className="tabs" role="group" aria-label={t('Meeting list')}>
                     <button
                       aria-pressed={tab === 'upcoming'}
                       className={tab === 'upcoming' ? 'selected' : ''}
                       onClick={() => setTab('upcoming')}
                     >
-                      Upcoming
+                      {t('Upcoming')}
                       <span>
                         {meetings.filter((m) => ['scheduled', 'live'].includes(m.status)).length}
                       </span>
@@ -392,21 +410,21 @@ function Dashboard({
                       className={tab === 'past' ? 'selected' : ''}
                       onClick={() => setTab('past')}
                     >
-                      Past meetings
+                      {t('Past meetings')}
                     </button>
                   </div>
                   <label className="search">
                     <Search size={16} />
                     <input
-                      aria-label="Search meetings"
-                      placeholder="Find a conversation"
+                      aria-label={t('Search meetings')}
+                      placeholder={t('Find a conversation')}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
                 </div>
                 {loading ? (
-                  <p className="empty">Loading meetings…</p>
+                  <p className="empty">{t('Loading meetings…')}</p>
                 ) : !shown.length ? (
                   <div className="empty meeting-empty">
                     <span className="empty-icon">
@@ -414,19 +432,19 @@ function Dashboard({
                     </span>
                     <h3>
                       {query
-                        ? 'No matching meetings.'
+                        ? t('No matching meetings.')
                         : tab === 'past'
-                          ? 'Room for memories.'
-                          : 'Your calendar is wide open.'}
+                          ? t('Room for memories.')
+                          : t('Your calendar is wide open.')}
                     </h3>
                     <p>
                       {tab === 'past'
-                        ? 'Finished and cancelled meetings will appear here.'
-                        : 'Schedule your first conversation or start one right now.'}
+                        ? t('Finished and cancelled meetings will appear here.')
+                        : t('Schedule your first conversation or start one right now.')}
                     </p>
                     {tab === 'upcoming' && !query && (
                       <button className="text-button" onClick={() => setForm('new')}>
-                        Create your first meeting
+                        {t('Create your first meeting')}
                         <ArrowRight size={17} />
                       </button>
                     )}
@@ -437,13 +455,13 @@ function Dashboard({
                       <article className="meeting-row" key={m.id}>
                         <div className="date-tile">
                           <span>
-                            {new Intl.DateTimeFormat('en', {
+                            {new Intl.DateTimeFormat(language, {
                               month: 'short',
                               timeZone: m.timeZone,
                             }).format(new Date(m.scheduledAt))}
                           </span>
                           <strong>
-                            {new Intl.DateTimeFormat('en', {
+                            {new Intl.DateTimeFormat(language, {
                               day: '2-digit',
                               timeZone: m.timeZone,
                             }).format(new Date(m.scheduledAt))}
@@ -451,52 +469,56 @@ function Dashboard({
                         </div>
                         <div className="meeting-details">
                           <div className="meeting-title">
-                            <a aria-label={`Open ${m.title}`} href={meetingLink(org, m)}>
+                            <a
+                              aria-label={t('Open {name}', { name: m.title })}
+                              href={meetingLink(org, m)}
+                            >
                               {m.title}
                             </a>
-                            {m.status === 'live' && <span className="live-badge">LIVE</span>}
+                            {m.status === 'live' && <span className="live-badge">{t('LIVE')}</span>}
                           </div>
                           <p>
                             <Clock size={13} />
-                            {dateLabel(m.scheduledAt, m.timeZone)}
+                            {dateLabel(m.scheduledAt, m.timeZone, language)}
                             <span>·</span>
-                            {m.durationMinutes} min
+                            {m.durationMinutes}
+                            {t('min')}
                           </p>
                           <span className="access-label">
                             {m.access === 'link' ? <Link2 size={12} /> : <LockKeyhole size={12} />}{' '}
                             {m.access === 'link'
-                              ? 'Anyone with the link'
-                              : 'Invited email addresses only'}
-                            {['ended', 'cancelled'].includes(m.status) && ` · ${m.status}`}
+                              ? t('Anyone with the link')
+                              : t('Invited email addresses only')}
+                            {['ended', 'cancelled'].includes(m.status) && ` · ${t(m.status)}`}
                           </span>
                         </div>
                         <div className="meeting-actions">
                           <button
                             className="icon-button"
-                            aria-label={`Copy link for ${m.title}`}
+                            aria-label={t('Copy link for {name}', { name: m.title })}
                             onClick={() => void copy(m)}
-                            title="Copy meeting link"
+                            title={t('Copy meeting link')}
                           >
                             {copied === m.id ? <Check size={18} /> : <Copy size={18} />}
                           </button>
                           {m.canHost && m.status === 'scheduled' && (
                             <>
                               <button className="text-button" onClick={() => setForm(m)}>
-                                Edit
+                                {t('Edit')}
                               </button>
                               <button
                                 className="secondary small"
                                 disabled={busy === m.id}
                                 onClick={() => void action(m, 'start')}
                               >
-                                Start
+                                {t('Start')}
                                 <ArrowUpRight size={15} />
                               </button>
                             </>
                           )}
                           {m.status === 'live' && (
                             <a className="primary small" href={meetingLink(org, m)}>
-                              Join
+                              {t('Join')}
                               <ArrowUpRight size={15} />
                             </a>
                           )}
@@ -506,17 +528,35 @@ function Dashboard({
                               disabled={busy === m.id}
                               onClick={() => void action(m, 'restart')}
                             >
-                              Restart
+                              {t('Restart')}
                             </button>
                           )}
                         </div>
+                        {m.canHost && (
+                          <details className="meeting-recordings">
+                            <summary>{t('Meeting details')}</summary>
+                            <MeetingSettingsEditor
+                              code={m.code}
+                              initial={m.settings}
+                              ended={m.status === 'ended' || m.status === 'cancelled'}
+                            />
+                            <RecordingsPanel
+                              code={m.code}
+                              canManage
+                              canShare
+                              live={m.status === 'live'}
+                            />
+                          </details>
+                        )}
                       </article>
                     ))}
                   </div>
                 )}
                 <footer className="list-footer">
                   <ShieldIcon />
-                  Your meetings belong to {org.name}. Your links carry your brand.
+                  {t('Your meetings belong to {name}. Your links carry your brand.', {
+                    name: org.name,
+                  })}
                 </footer>
               </section>
             </>
@@ -545,7 +585,7 @@ function Dashboard({
         />
       )}
       <div className="sr-only" role="status">
-        {copied ? 'Meeting link copied.' : ''}
+        {copied ? t('Meeting link copied.') : ''}
       </div>
     </div>
   );
@@ -560,6 +600,7 @@ function NewOrganization({
   onClose: () => void;
   onSaved: (id: string) => Promise<void>;
 }) {
+  const { t, language } = useLanguage();
   const dialogRef = useDialog(onClose);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -573,13 +614,13 @@ function NewOrganization({
         aria-labelledby="new-org-title"
       >
         <div className="modal-heading">
-          <span className="eyebrow">PLATFORM ADMINISTRATION</span>
-          <button autoFocus className="icon-button" onClick={onClose} aria-label="Close">
+          <span className="eyebrow">{t('PLATFORM ADMINISTRATION')}</span>
+          <button autoFocus className="icon-button" onClick={onClose} aria-label={t('Close')}>
             <X />
           </button>
         </div>
-        <h2 id="new-org-title">A new place to meet.</h2>
-        <p>Create a company workspace and assign its manager.</p>
+        <h2 id="new-org-title">{t('A new place to meet.')}</h2>
+        <p>{t('Create a company workspace and assign its manager.')}</p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -601,32 +642,37 @@ function NewOrganization({
           }}
         >
           <label>
-            Company name
-            <input name="name" required maxLength={100} placeholder="Element8" />
+            {t('Company name')}
+            <input name="name" required maxLength={100} placeholder={t('Element8')} />
           </label>
           <label>
-            Organization address
+            {t('Organization address')}
             <input
               name="slug"
               required
               pattern="[a-z0-9][a-z0-9-]*"
               maxLength={48}
-              placeholder="element8"
+              placeholder={t('element8')}
             />
-            <small>Lowercase letters, numbers, and hyphens.</small>
+            <small>{t('Lowercase letters, numbers, and hyphens.')}</small>
           </label>
           <label>
-            Manager email
-            <input name="managerEmail" required type="email" placeholder="manager@company.com" />
-            <small>They gain access when they verify this email.</small>
+            {t('Manager email')}
+            <input
+              name="managerEmail"
+              required
+              type="email"
+              placeholder={t('manager@company.com')}
+            />
+            <small>{t('They gain access when they verify this email.')}</small>
           </label>
           {error && (
             <p className="error" role="alert">
-              {error}
+              {t(error)}
             </p>
           )}
           <button className="primary wide" disabled={busy}>
-            Create organization
+            {t('Create organization')}
             <ArrowRight size={17} />
           </button>
         </form>

@@ -1,17 +1,31 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { TokenVerifier } from 'livekit-server-sdk';
+import { TokenVerifier, TrackSource } from 'livekit-server-sdk';
 import { WebSocket, type RawData } from 'ws';
 import type { Store, State } from './store.js';
 import type { Config } from './config.js';
 import { ApiError, isOwner } from './auth.js';
-type SignalAccess = { identity: string; room: string };
+import { participantPermissions } from './meetings.js';
+import { publishSources } from './media.js';
+type SignalAccess = {
+  identity: string;
+  room: string;
+  publish: boolean;
+  sources?: (string | number)[];
+  data: boolean;
+};
 async function claims(config: Config, raw: string): Promise<SignalAccess> {
   if (!raw || raw.length > 8192 || !config.livekitKey || !config.livekitSecret)
     throw new ApiError(401, 'Invalid media access token.');
   try {
     const c = await new TokenVerifier(config.livekitKey, config.livekitSecret).verify(raw, 0);
     if (!c.sub || !c.video?.roomJoin || !c.video.room) throw new Error();
-    return { identity: c.sub, room: c.video.room };
+    return {
+      identity: c.sub,
+      room: c.video.room,
+      publish: c.video.canPublish !== false,
+      sources: c.video.canPublishSources,
+      data: c.video.canPublishData !== false,
+    };
   } catch {
     throw new ApiError(401, 'Invalid or expired media access token.');
   }
@@ -30,6 +44,28 @@ function authorizeSignalState(s: State, access: SignalAccess, c: Config) {
     access.room !== `meet8-${m.sessionId}`
   )
     throw new ApiError(403, 'This participant no longer has access to the meeting.');
+  const permissions = participantPermissions(s, m, a, c.ownerEmail);
+  const allowed = new Set(publishSources(permissions));
+  const all = [
+    TrackSource.CAMERA,
+    TrackSource.MICROPHONE,
+    TrackSource.SCREEN_SHARE,
+    TrackSource.SCREEN_SHARE_AUDIO,
+  ];
+  const sourceIds: Record<string, number> = {
+    camera: TrackSource.CAMERA,
+    microphone: TrackSource.MICROPHONE,
+    screen_share: TrackSource.SCREEN_SHARE,
+    screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
+  };
+  const granted =
+    access.sources?.map((source) => (typeof source === 'number' ? source : sourceIds[source])) ??
+    all;
+  if (
+    (access.publish && granted.some((source) => !allowed.has(source))) ||
+    (access.data && !permissions.data)
+  )
+    throw new ApiError(403, 'Media permissions changed. Reconnect to continue.');
   const user = a.userId ? s.users.find((u) => u.id === a.userId) : undefined;
   const member =
     user && s.memberships.find((x) => x.orgId === m.orgId && x.email === user.email && x.active);

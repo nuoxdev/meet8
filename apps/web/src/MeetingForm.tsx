@@ -1,3 +1,6 @@
+import { MeetingPolicyFields, defaultMeetingSettings } from './MeetingControls';
+import './workshop.css';
+import { useLanguage } from './i18n';
 import { useDialog } from './useDialog';
 import { useState } from 'react';
 import { X, ArrowRight, Link2, LockKeyhole } from 'lucide-react';
@@ -14,10 +17,12 @@ export function MeetingForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const { t } = useLanguage();
   const dialogRef = useDialog(onClose);
   const [access, setAccess] = useState(meeting?.access ?? 'link');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [settings, setSettings] = useState({ ...defaultMeetingSettings, ...meeting?.settings });
   return (
     <div className="modal-backdrop">
       <section
@@ -34,15 +39,15 @@ export function MeetingForm({
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('Close')}
           >
             <X />
           </button>
         </div>
         <h2 id="meeting-form-title">
-          {meeting ? 'Fine-tune the details.' : 'Put a conversation on the calendar.'}
+          {meeting ? t('Fine-tune the details.') : t('Put a conversation on the calendar.')}
         </h2>
-        <p>A link to your company’s space. Ready whenever you are.</p>
+        <p>{t('A link to your company’s space. Ready whenever you are.')}</p>
         <form
           onSubmit={async (e) => {
             e.preventDefault();
@@ -56,6 +61,7 @@ export function MeetingForm({
               );
               const body = {
                 title: f.get('title'),
+                settings,
                 description: f.get('description'),
                 scheduledAt,
                 durationMinutes: Number(f.get('duration')),
@@ -80,18 +86,18 @@ export function MeetingForm({
           }}
         >
           <label>
-            Meeting title
+            {t('Meeting title')}
             <input
               required
               name="title"
               maxLength={160}
               defaultValue={meeting?.title}
-              placeholder="Let’s talk about what’s next"
+              placeholder={t('Let’s talk about what’s next')}
             />
           </label>
           <div className="form-grid">
             <label>
-              Date and time
+              {t('Date and time')}
               <input
                 required
                 type="datetime-local"
@@ -103,28 +109,29 @@ export function MeetingForm({
               />
             </label>
             <label>
-              Duration
+              {t('Duration')}
               <select name="duration" defaultValue={meeting?.durationMinutes ?? 30}>
                 {[15, 30, 45, 60, 90, 120, 180, 240, 480].map((n) => (
                   <option key={n} value={n}>
-                    {n} minutes
+                    {n}
+                    {t('minutes')}
                   </option>
                 ))}
               </select>
             </label>
           </div>
           <label>
-            Time zone
+            {t('Time zone')}
             <input
               required
               name="timeZone"
               defaultValue={meeting?.timeZone ?? org.timeZone}
-              placeholder="Asia/Dubai"
+              placeholder={t('Asia/Dubai')}
             />
-            <small>The selected date and time use this time zone.</small>
+            <small>{t('The selected date and time use this time zone.')}</small>
           </label>
           <fieldset className="access-options">
-            <legend>Who can join?</legend>
+            <legend>{t('Who can join?')}</legend>
             <label className={access === 'link' ? 'access-option checked' : 'access-option'}>
               <input
                 type="radio"
@@ -135,8 +142,8 @@ export function MeetingForm({
               />
               <Link2 size={18} />
               <span>
-                <strong>Anyone with the link</strong>
-                <small>Clients can join with just their name.</small>
+                <strong>{t('Anyone with the link')}</strong>
+                <small>{t('Clients can join with just their name.')}</small>
               </span>
             </label>
             <label className={access === 'invited' ? 'access-option checked' : 'access-option'}>
@@ -149,43 +156,50 @@ export function MeetingForm({
               />
               <LockKeyhole size={18} />
               <span>
-                <strong>Invited email addresses only</strong>
-                <small>Each guest verifies their email before joining.</small>
+                <strong>{t('Invited email addresses only')}</strong>
+                <small>{t('Each guest verifies their email before joining.')}</small>
               </span>
             </label>
           </fieldset>
           <label>
-            Invite email addresses
+            {t('Invite email addresses')}
             <textarea
               name="invitees"
               required={access === 'invited'}
               defaultValue={meeting?.invitees.join(', ')}
-              placeholder="alex@client.com, sam@company.com"
+              placeholder={t('alex@client.com, sam@company.com')}
               rows={2}
             />
-            <small>Separate addresses with commas. Send invitations from the meeting page.</small>
+            <small>
+              {t('Separate addresses with commas. Send invitations from the meeting page.')}
+            </small>
           </label>
           <label>
-            Meeting notes <span className="optional">optional</span>
+            {t('Meeting notes')}
+            <span className="optional">{t('optional')}</span>
             <textarea
               name="description"
               maxLength={2000}
               defaultValue={meeting?.description ?? ''}
-              placeholder="What would you like to discuss?"
+              placeholder={t('What would you like to discuss?')}
               rows={2}
             />
           </label>
           {error && (
             <p className="error" role="alert">
-              {error}
+              {t(error)}
             </p>
           )}
+          <details className="schedule-permissions">
+            <summary>{t('Workshop permissions')}</summary>
+            <MeetingPolicyFields value={settings} onChange={setSettings} disabled={busy} />
+          </details>
           <div className="form-actions">
             <button className="secondary" type="button" onClick={onClose}>
-              Cancel
+              {t('Cancel')}
             </button>
             <button className="primary" disabled={busy}>
-              {busy ? 'Saving…' : meeting ? 'Save changes' : 'Create meeting'}
+              {busy ? t('Saving…') : meeting ? t('Save changes') : t('Create meeting')}
               <ArrowRight size={17} />
             </button>
           </div>

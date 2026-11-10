@@ -1,0 +1,117 @@
+.language-switcher {
+  flex-shrink: 0;
+  border: 1px solid var(--theme-border, #cad5c8);
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: var(--theme-paper, #fff);
+  color: var(--theme-text, #244739);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.auth-card > .language-switcher {
+  display: block;
+  margin-inline-start: auto;
+  margin-bottom: 20px;
+}
+[dir='rtl'] body {
+  font-family: Tahoma, Arial, sans-serif;
+}
+[dir='rtl'] .eyebrow,
+[dir='rtl'] .topbar-label,
+[dir='rtl'] .workspace > label {
+  letter-spacing: 0;
+}
+[dir='rtl'] h1,
+[dir='rtl'] h2,
+[dir='rtl'] h3 {
+  letter-spacing: 0;
+  font-family: Tahoma, Arial, sans-serif;
+  line-height: 1.5;
+}
+[dir='rtl'] .sidebar {
+  inset: 0 0 0 auto;
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+[dir='rtl'] .app-main {
+  margin-left: 0;
+  margin-right: 244px;
+}
+[dir='rtl'] .nav-item {
+  text-align: right;
+}
+[dir='rtl'] .nav-item > span {
+  margin-left: 0;
+  margin-right: auto;
+}
+[dir='rtl'] .breadcrumb {
+  margin-left: 0;
+  margin-right: 10px;
+}
+[dir='rtl'] .wordmark {
+  direction: ltr;
+}
+[dir='rtl'] input[type='email'],
+[dir='rtl'] input[name='slug'],
+[dir='rtl'] input[name='pageSlug'],
+[dir='rtl'] input[name='timeZone'],
+[dir='rtl'] input[inputmode='numeric'],
+[dir='rtl'] input[type='datetime-local'],
+[dir='rtl'] .profile small,
+[dir='rtl'] .member-list strong {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+[dir='rtl'] .topbar {
+  gap: 14px;
+}
+[dir='rtl'] .topbar-label {
+  margin-inline-start: auto;
+}
+[dir='rtl'] .brand-preview {
+  text-align: right;
+}
+[dir='rtl'] .brand-preview h3 {
+  font-family: inherit;
+}
+[dir='rtl'] .meeting-actions {
+  flex-wrap: wrap;
+}
+[dir='rtl'] .lk-control-bar {
+  direction: rtl;
+}
+@media (max-width: 1100px) {
+  [dir='rtl'] .app-main {
+    margin-right: 210px;
+  }
+}
+@media (max-width: 760px) {
+  [dir='rtl'] .app-main {
+    margin-right: 0;
+  }
+  [dir='rtl'] .sidebar {
+    border-left: 0;
+  }
+}
+@media (max-width: 600px) {
+  .topbar > .language-switcher {
+    padding: 7px 10px;
+  }
+  [dir='rtl'] .topbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 64px;
+    padding-block: 12px;
+  }
+  [dir='rtl'] .hero-actions {
+    align-items: stretch;
+  }
+  [dir='rtl'] .meeting-row {
+    min-width: 0;
+  }
+  [dir='rtl'] .list-tools {
+    gap: 12px;
+  }
+}

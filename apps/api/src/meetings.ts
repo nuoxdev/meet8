@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { recordingSessionState } from './recordings.js';
 import type { AppOptions } from './app.js';
-import type { State, Meeting, User, Attendee } from './store.js';
+import type { State, Meeting, User, Attendee, MeetingSettings } from './store.js';
 import {
   ApiError,
   requireUser,
@@ -14,6 +15,65 @@ import {
   hash,
   audit,
 } from './auth.js';
+export function meetingSettings(m: Meeting): MeetingSettings {
+  return {
+    microphoneAccess: 'everyone',
+    cameraAccess: 'everyone',
+    screenShareAccess: 'everyone',
+    chatEnabled: true,
+    locked: false,
+    ...m.settings,
+  };
+}
+export function isMeetingHost(s: State, m: Meeting, u: User | undefined, ownerEmail: string) {
+  if (!u) return false;
+  try {
+    requireOrg(s, u, m.orgId, ownerEmail);
+    return (
+      m.createdBy === u.id ||
+      isOwner(u, ownerEmail) ||
+      s.memberships.some(
+        (x) => x.orgId === m.orgId && x.email === u.email && x.active && x.role === 'manager',
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+export function isMeetingCohost(m: Meeting, a: Attendee) {
+  return (
+    a.meetingId === m.id &&
+    a.sessionId === m.sessionId &&
+    !a.removed &&
+    !a.leftAt &&
+    Boolean(m.cohostAttendeeIds?.includes(a.id))
+  );
+}
+export function participantPermissions(s: State, m: Meeting, a: Attendee, ownerEmail: string) {
+  const elevated =
+    isMeetingHost(
+      s,
+      m,
+      s.users.find((u) => u.id === a.userId),
+      ownerEmail,
+    ) || isMeetingCohost(m, a);
+  const settings = meetingSettings(m);
+  return {
+    microphone: elevated || settings.microphoneAccess === 'everyone',
+    camera: elevated || settings.cameraAccess === 'everyone',
+    screenShare: elevated || settings.screenShareAccess === 'everyone',
+    data: false,
+  };
+}
+const settingsBody = z
+  .object({
+    microphoneAccess: z.enum(['everyone', 'hosts']).optional(),
+    cameraAccess: z.enum(['everyone', 'hosts']).optional(),
+    screenShareAccess: z.enum(['everyone', 'hosts']).optional(),
+    chatEnabled: z.boolean().optional(),
+    locked: z.boolean().optional(),
+  })
+  .strict();
 const date = z.string().datetime({ offset: true });
 const zone = z.string().refine((v) => {
   try {
@@ -24,6 +84,16 @@ const zone = z.string().refine((v) => {
   }
 }, 'Invalid timezone.');
 const body = z.object({
+  settings: settingsBody
+    .transform((v) => ({
+      microphoneAccess: 'everyone' as const,
+      cameraAccess: 'everyone' as const,
+      screenShareAccess: 'everyone' as const,
+      chatEnabled: true,
+      locked: false,
+      ...v,
+    }))
+    .optional(),
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(2000).default(''),
   scheduledAt: date,
@@ -45,6 +115,7 @@ function publicMeeting(s: State, m: Meeting) {
     organization: {
       name: org.name,
       slug: org.slug,
+      pageSlug: org.pageSlug,
       color: org.color,
       secondaryColor: org.secondaryColor,
       accentColor: org.accentColor,
@@ -79,6 +150,41 @@ export async function registerMeetings(
       return true;
     } catch {
       return false;
+    }
+  };
+  const moderator = (s: State, m: Meeting, req: FastifyRequest) => {
+    const u = optionalUser(s, req);
+    if (canHost(s, m, u)) return { u, a: undefined as Attendee | undefined };
+    const a = attendee(s, m, req);
+    if (!isMeetingCohost(m, a))
+      throw new ApiError(403, 'Only hosts and cohosts can moderate this meeting.');
+    return { u, a };
+  };
+  const participants = (s: State, m: Meeting) =>
+    s.attendees.filter(
+      (a) => a.meetingId === m.id && a.sessionId === m.sessionId && !a.removed && !a.leftAt,
+    );
+  const syncPermissions = async (s: State, m: Meeting) => {
+    if (m.status !== 'live') return;
+    if (!media.ready || !media.updatePermissions)
+      throw new ApiError(503, 'Media permission changes are unavailable. Settings were not saved.');
+    try {
+      for (const a of participants(s, m))
+        await media.updatePermissions(
+          `meet8-${m.sessionId}`,
+          a.id,
+          participantPermissions(s, m, a, config.ownerEmail),
+        );
+    } catch {
+      // A provider may have accepted some grants before failing. Disconnect all
+      // affected sessions rather than leave a partially elevated connected peer.
+      await Promise.allSettled(
+        participants(s, m).map((a) => media.remove(`meet8-${m.sessionId}`, a.id)),
+      );
+      throw new ApiError(
+        503,
+        'Media permission changes could not be confirmed. Settings were not saved; reconnect and retry before continuing.',
+      );
     }
   };
   const admission = (s: State, m: Meeting, request: FastifyRequest) => {
@@ -256,6 +362,8 @@ export async function registerMeetings(
           a.sessionId === m.sessionId &&
           (user ? a.userId === user.id : !a.userId && a.guestHash === hash(guestToken)),
       );
+      if (meetingSettings(m).locked && !a && !canHost(s, m, user))
+        throw new ApiError(403, 'The host has locked this meeting.');
       if (a?.removed) throw new ApiError(403, 'You have been removed from this meeting.');
       if (!a) {
         a = {
@@ -302,7 +410,20 @@ export async function registerMeetings(
       return {
         ...publicMeeting(s, m),
         sessionId: m.sessionId,
-        attendee: { id: a.id, name: a.name, email: a.email, raised: a.raised },
+        attendee: {
+          id: a.id,
+          name: a.name,
+          email: a.email,
+          raised: a.raised,
+          isHost: canHost(s, m, user),
+          isCohost: isMeetingCohost(m, a),
+        },
+        ...recordingSessionState(s, m),
+        recordingAvailable: Boolean((config as { recordingEnabled?: boolean }).recordingEnabled),
+        settings: meetingSettings(m),
+        permissions: participantPermissions(s, m, a, config.ownerEmail),
+        canModerate: canHost(s, m, user) || isMeetingCohost(m, a),
+        canAssignCohost: canHost(s, m, user),
         canHost: canHost(s, m, user),
         meetingId: canHost(s, m, user) ? m.id : undefined,
         orgId: canHost(s, m, user) ? m.orgId : undefined,
@@ -310,7 +431,18 @@ export async function registerMeetings(
           .filter(
             (p) => p.meetingId === m.id && p.sessionId === m.sessionId && !p.removed && !p.leftAt,
           )
-          .map((p) => ({ id: p.id, name: p.name, raised: p.raised })),
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            raised: p.raised,
+            isHost: canHost(
+              s,
+              m,
+              s.users.find((u) => u.id === p.userId),
+            ),
+            isCohost: isMeetingCohost(m, p),
+            verified: Boolean(p.userId),
+          })),
         mediaReady: media.ready,
       };
     }),
@@ -327,7 +459,12 @@ export async function registerMeetings(
         );
       try {
         return {
-          ...(await media.token(`meet8-${m.sessionId}`, a.id, a.name)),
+          ...(await media.token(
+            `meet8-${m.sessionId}`,
+            a.id,
+            a.name,
+            participantPermissions(s, m, a, config.ownerEmail),
+          )),
           sessionId: m.sessionId,
         };
       } catch {
@@ -341,6 +478,7 @@ export async function registerMeetings(
       const a = attendee(s, m, req);
       if (m.status === 'live') await media.remove(`meet8-${m.sessionId}`, a.id);
       a.leftAt = now();
+      a.raised = false;
       return { ok: true };
     }),
   );
@@ -367,6 +505,12 @@ export async function registerMeetings(
     const message = await store.transaction((s) => {
       const m = find(s, req.params.code);
       const a = attendee(s, m, req, true);
+      if (
+        !meetingSettings(m).chatEnabled &&
+        !canHost(s, m, optionalUser(s, req)) &&
+        !isMeetingCohost(m, a)
+      )
+        throw new ApiError(403, 'Chat is disabled by the host.');
       const message = {
         id: id(),
         orgId: m.orgId,
@@ -386,17 +530,120 @@ export async function registerMeetings(
     const b = z.object({ attendeeId: z.string().uuid() }).parse(req.body);
     return store.transaction(async (s) => {
       const m = find(s, req.params.code);
-      const u = requireUser(s, req);
-      host(s, m, u);
+      const { u } = moderator(s, m, req);
       const target = s.attendees.find(
         (a) => a.id === b.attendeeId && a.meetingId === m.id && a.sessionId === m.sessionId,
       );
       if (!target) throw new ApiError(404, 'Participant not found.');
-      if (target.userId === u.id) throw new ApiError(400, 'Use Leave to exit your meeting.');
-      if (m.status === 'live') await media.remove(`meet8-${m.sessionId}`, target.id);
+      if (u && target.userId === u.id) throw new ApiError(400, 'Use Leave to exit your meeting.');
+      if (
+        !canHost(s, m, u) &&
+        (canHost(
+          s,
+          m,
+          s.users.find((x) => x.id === target.userId),
+        ) ||
+          isMeetingCohost(m, target))
+      )
+        throw new ApiError(403, 'Only the original host may remove elevated participants.');
+      if (target.userId === m.createdBy)
+        throw new ApiError(403, 'The original host cannot be removed.');
+      if (m.status === 'live') {
+        try {
+          await media.remove(`meet8-${m.sessionId}`, target.id);
+        } catch {
+          throw new ApiError(503, 'Participant removal could not be confirmed.');
+        }
+      }
       target.removed = true;
-      audit(s, u.id, 'participant.removed', target.id, m.orgId);
+      audit(s, u?.id ?? 'guest-cohost', 'participant.removed', target.id, m.orgId);
       return { ok: true };
     });
   });
+  app.patch<{ Params: { code: string } }>('/api/meet/:code/settings', async (req) => {
+    const b = settingsBody.parse(req.body);
+    return store.transaction(async (s) => {
+      const m = find(s, req.params.code);
+      moderator(s, m, req);
+      const old = meetingSettings(m);
+      m.settings = { ...old, ...b };
+      if (
+        ['microphoneAccess', 'cameraAccess', 'screenShareAccess'].some(
+          (k) => old[k as keyof MeetingSettings] !== m.settings![k as keyof MeetingSettings],
+        )
+      )
+        await syncPermissions(s, m);
+      return { settings: meetingSettings(m) };
+    });
+  });
+  app.post<{ Params: { code: string } }>('/api/meet/:code/moderate', async (req) => {
+    const b = z
+      .object({
+        action: z.enum(['lower-hand', 'mute', 'mute-all', 'cohost', 'remove-cohost']),
+        attendeeId: z.string().uuid().optional(),
+      })
+      .strict()
+      .parse(req.body);
+    return store.transaction(async (s) => {
+      const m = find(s, req.params.code);
+      const { u } = moderator(s, m, req);
+      const target = participants(s, m).find((a) => a.id === b.attendeeId);
+      if (b.action !== 'mute-all' && !target) throw new ApiError(404, 'Participant not found.');
+      if (b.action === 'cohost' || b.action === 'remove-cohost') {
+        if (!canHost(s, m, u))
+          throw new ApiError(
+            403,
+            'Only the original host or organization manager can assign cohosts.',
+          );
+        m.cohostAttendeeIds = (m.cohostAttendeeIds ?? []).filter((id) => id !== target!.id);
+        if (b.action === 'cohost') m.cohostAttendeeIds.push(target!.id);
+        const p = participantPermissions(s, m, target!, config.ownerEmail);
+        if (
+          m.status === 'live' &&
+          (p.microphone === false ||
+            p.camera === false ||
+            p.screenShare === false ||
+            Object.values(meetingSettings(m)).includes('hosts'))
+        )
+          await syncPermissions(s, m);
+      } else if (b.action === 'lower-hand') target!.raised = false;
+      else {
+        if (!media.ready || !media.mute)
+          throw new ApiError(503, 'Microphone moderation is unavailable.');
+        try {
+          for (const a of b.action === 'mute-all'
+            ? participants(s, m).filter(
+                (a) =>
+                  !isMeetingHost(
+                    s,
+                    m,
+                    s.users.find((u) => u.id === a.userId),
+                    config.ownerEmail,
+                  ) && !isMeetingCohost(m, a),
+              )
+            : [target!])
+            await media.mute(`meet8-${m.sessionId}`, a.id);
+        } catch {
+          throw new ApiError(503, 'Microphone mute could not be confirmed.');
+        }
+      }
+      audit(s, u?.id ?? 'guest-cohost', `participant.${b.action}`, target?.id ?? m.id, m.orgId);
+      return { ok: true };
+    });
+  });
+  app.delete<{ Params: { code: string; messageId: string } }>(
+    '/api/meet/:code/chat/:messageId',
+    async (req) =>
+      store.transaction((s) => {
+        const m = find(s, req.params.code);
+        moderator(s, m, req);
+        const index = s.messages.findIndex(
+          (x) =>
+            x.id === req.params.messageId && x.meetingId === m.id && x.sessionId === m.sessionId,
+        );
+        if (index < 0) throw new ApiError(404, 'Message not found.');
+        s.messages.splice(index, 1);
+        return { ok: true };
+      }),
+  );
 }

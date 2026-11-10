@@ -1,6 +1,8 @@
 import { Pool } from 'pg';
+import type { Recording } from './recordings.js';
 export type User = { id: string; email: string; name: string; createdAt: string };
 export type Organization = {
+  pageSlug?: string;
   id: string;
   name: string;
   slug: string;
@@ -27,7 +29,16 @@ export type Challenge = {
   createdAt: number;
 };
 export type Session = { hash: string; userId: string; expiresAt: number };
+export type MeetingSettings = {
+  microphoneAccess: 'everyone' | 'hosts';
+  cameraAccess: 'everyone' | 'hosts';
+  screenShareAccess: 'everyone' | 'hosts';
+  chatEnabled: boolean;
+  locked: boolean;
+};
 export type Meeting = {
+  settings?: MeetingSettings;
+  cohostAttendeeIds?: string[];
   id: string;
   orgId: string;
   code: string;
@@ -77,6 +88,7 @@ export type Audit = {
   createdAt: string;
 };
 export type State = {
+  recordings?: Recording[];
   users: User[];
   organizations: Organization[];
   memberships: Membership[];

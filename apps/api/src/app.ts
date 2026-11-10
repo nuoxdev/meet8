@@ -10,6 +10,11 @@ import type { Mailer } from './mail.js';
 import type { Media } from './media.js';
 import { registerMeetings } from './meetings.js';
 import {
+  registerRecordingRoutes,
+  createRecordingService,
+  type RecordingService,
+} from './recordings.js';
+import {
   ApiError,
   requireUser,
   requireOrg,
@@ -22,8 +27,28 @@ import {
   audit,
 } from './auth.js';
 const email = z.string().trim().toLowerCase().email().max(254);
+const reservedPages = new Set([
+  'api',
+  'assets',
+  'media',
+  'health',
+  'recordings',
+  'o',
+  'login',
+  'admin',
+]);
+const pageAddress = z
+  .string()
+  .regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/)
+  .refine((v) => !reservedPages.has(v), 'Choose a different organization page address.');
 const displayName = z.string().trim().min(1).max(100);
-export type AppOptions = { store: Store; config: Config; mailer: Mailer; media: Media };
+export type AppOptions = {
+  store: Store;
+  config: Config;
+  mailer: Mailer;
+  media: Media;
+  recordings?: RecordingService;
+};
 export async function buildApp(options: AppOptions) {
   const { store, config, mailer, media } = options;
   const app = Fastify({
@@ -186,11 +211,29 @@ export async function buildApp(options: AppOptions) {
       };
     }),
   );
+  app.get<{ Params: { slug: string } }>('/api/organizations/:slug', async (request) =>
+    store.transaction((s) => {
+      const org = s.organizations.find(
+        (o) => o.slug === request.params.slug || o.pageSlug === request.params.slug,
+      );
+      if (!org) throw new ApiError(404, 'Organization page not found.');
+      return {
+        name: org.name,
+        slug: org.slug,
+        pageSlug: org.pageSlug ?? org.slug,
+        color: org.color,
+        secondaryColor: org.secondaryColor,
+        accentColor: org.accentColor,
+        logoDataUrl: org.logoDataUrl,
+        timeZone: org.timeZone,
+      };
+    }),
+  );
   app.post('/api/orgs', async (request, reply) => {
     const b = z
       .object({
         name: displayName,
-        slug: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,46}[a-z0-9])?$/),
+        slug: pageAddress,
         managerEmail: email,
       })
       .parse(request.body);
@@ -198,7 +241,7 @@ export async function buildApp(options: AppOptions) {
       const user = requireUser(s, request);
       if (!isOwner(user, config.ownerEmail))
         throw new ApiError(403, 'Only the platform owner can create organizations.');
-      if (s.organizations.some((o) => o.slug === b.slug))
+      if (s.organizations.some((o) => o.slug === b.slug || o.pageSlug === b.slug))
         throw new ApiError(409, 'This organization address is already taken.');
       const org = {
         id: id(),
@@ -228,6 +271,7 @@ export async function buildApp(options: AppOptions) {
     const b = z
       .object({
         name: displayName.optional(),
+        pageSlug: pageAddress.optional(),
         color: z
           .string()
           .regex(/^#[0-9a-fA-F]{6}$/)
@@ -265,6 +309,13 @@ export async function buildApp(options: AppOptions) {
     return store.transaction((s) => {
       const user = requireUser(s, request);
       const org = requireOrg(s, user, request.params.orgId, config.ownerEmail, true);
+      if (
+        b.pageSlug &&
+        s.organizations.some(
+          (o) => o.id !== org.id && (o.slug === b.pageSlug || o.pageSlug === b.pageSlug),
+        )
+      )
+        throw new ApiError(409, 'This organization address is already taken.');
       Object.assign(org, b);
       audit(s, user.id, 'organization.updated', org.id, org.id);
       return org;
@@ -336,5 +387,11 @@ export async function buildApp(options: AppOptions) {
   );
   await registerSignaling(app, { store, config });
   await registerMeetings(app, options);
+  await registerRecordingRoutes(
+    app,
+    store,
+    config,
+    options.recordings ?? createRecordingService(config),
+  );
   return app;
 }

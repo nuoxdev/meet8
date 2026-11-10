@@ -1,9 +1,10 @@
+import { writeFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 test('two browsers exchange camera and microphone media, chat, and end together', async ({
   browser,
 }) => {
   test.skip(!process.env.LIVEKIT_URL, 'Run with local or dedicated test LiveKit configuration.');
-  test.setTimeout(90000);
+  test.setTimeout(process.env.MEET8_TEST_RECORDING === 'true' ? 180000 : 90000);
   const hostContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
   const guestContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
   for (const c of [hostContext, guestContext])
@@ -58,6 +59,23 @@ test('two browsers exchange camera and microphone media, chat, and end together'
     await expect(p.locator('.lk-video-conference')).toBeVisible();
     await p.locator('button[data-lk-source="microphone"]').click();
     await p.locator('button[data-lk-source="camera"]').click();
+  }
+  let recordingId = '';
+  if (process.env.MEET8_TEST_RECORDING === 'true') {
+    await host.getByRole('button', { name: 'Recordings', exact: true }).click();
+    await host.getByRole('button', { name: 'Start recording', exact: true }).click();
+    await expect
+      .poll(
+        async () => {
+          const result = await (await host.request.get(`/api/meet/${m.code}/recordings`)).json();
+          recordingId = result.recordings[0]?.id ?? '';
+          return result.recordings[0]?.status;
+        },
+        { timeout: 45000 },
+      )
+      .toBe('recording');
+    await expect(guest.getByText('Recording in progress', { exact: true })).toBeVisible();
+    await host.getByRole('button', { name: 'Close panel', exact: true }).click();
   }
   async function mediaReceived(page: Page) {
     return page.evaluate(async () => {
@@ -162,6 +180,96 @@ test('two browsers exchange camera and microphone media, chat, and end together'
   await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();
   await guest.getByRole('button', { name: 'Join meeting', exact: true }).click();
   await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toBeVisible();
+  // Host controls apply to the SFU and a guest co-host can moderate without organization access.
+  await host.getByRole('button', { name: '2 people', exact: true }).click();
+  await host.getByRole('button', { name: 'Host controls', exact: true }).click();
+  await host.getByLabel('Microphone access', { exact: true }).selectOption('hosts');
+  await host.getByLabel('Camera access', { exact: true }).selectOption('hosts');
+  await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toHaveCount(0);
+  await expect(guest.getByRole('button', { name: 'Microphone', exact: true })).toHaveCount(0);
+  await guest.getByRole('button', { name: 'Raise hand', exact: true }).click();
+  await host.getByRole('button', { name: '2 people', exact: true }).click();
+  await host.getByRole('button', { name: 'Lower hand for Meeting Guest', exact: true }).click();
+  await expect(guest.getByRole('button', { name: 'Raise hand', exact: true })).toBeVisible();
+  await host.getByRole('button', { name: 'Make co-host', exact: true }).click();
+  await expect(guest.getByRole('button', { name: 'Host controls', exact: true })).toBeVisible();
+  await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toBeVisible();
+  await guest.getByRole('button', { name: 'Host controls', exact: true }).click();
+  await guest.getByLabel('Allow attendee chat', { exact: true }).uncheck();
+  await expect
+    .poll(
+      async () =>
+        (await (await guest.request.get(`/api/meet/${m.code}/session`)).json()).settings
+          .chatEnabled,
+    )
+    .toBe(false);
+  await guest.getByRole('button', { name: 'Chat', exact: true }).click();
+  const messageId = (await (await guest.request.get(`/api/meet/${m.code}/chat`)).json())[0].id;
+  expect(
+    (
+      await guest.request.delete(`/api/meet/${m.code}/chat/${messageId}`, {
+        headers: { origin: new URL(host.url()).origin },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(host.getByText('A real conversation', { exact: true })).toHaveCount(0);
+  await host.getByRole('button', { name: 'Remove co-host', exact: true }).click();
+  await expect(guest.getByRole('button', { name: 'Host controls', exact: true })).toHaveCount(0);
+  await expect(guest.getByLabel('Meeting message')).toBeDisabled();
+  await host.getByRole('button', { name: 'Host controls', exact: true }).click();
+  await host.getByLabel('Microphone access', { exact: true }).selectOption('everyone');
+  await host.getByLabel('Camera access', { exact: true }).selectOption('everyone');
+  await host.getByLabel('Allow attendee chat', { exact: true }).check();
+  await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toBeVisible();
+  if (recordingId) {
+    expect(
+      (
+        await host.request.post(`/api/meet/${m.code}/recordings/${recordingId}/stop`, {
+          headers: { origin: new URL(host.url()).origin },
+        })
+      ).ok(),
+    ).toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (await (await host.request.get(`/api/meet/${m.code}/recordings`)).json()).recordings.find(
+            (r: any) => r.id === recordingId,
+          )?.status,
+        { timeout: 60000 },
+      )
+      .toBe('ready');
+    const file = await host.request.get(`/api/meet/${m.code}/recordings/${recordingId}/file`);
+    expect(file.status()).toBe(200);
+    const data = await file.body();
+    expect(data.length).toBeGreaterThan(10000);
+    expect(data.subarray(4, 8).toString()).toBe('ftyp');
+    await writeFile('.superpowers/recording-verification.mp4', data);
+    await writeFile(
+      '.superpowers/recording-verification.json',
+      JSON.stringify({ recordingId, bytes: data.length }),
+    );
+    const share = await (
+      await host.request.post(`/api/meet/${m.code}/recordings/${recordingId}/share`, {
+        headers: { origin: new URL(host.url()).origin },
+      })
+    ).json();
+    const anon = await browser.newContext();
+    const playback = await anon.newPage();
+    await playback.goto(share.url);
+    await playback.locator('video').evaluate(async (video: HTMLVideoElement) => {
+      video.muted = true;
+      await video.play();
+    });
+    await expect
+      .poll(() => playback.locator('video').evaluate((video: HTMLVideoElement) => video.videoWidth))
+      .toBeGreaterThan(0);
+    await host.request.delete(`/api/meet/${m.code}/recordings/${recordingId}/share`, {
+      headers: { origin: new URL(host.url()).origin },
+    });
+    const raw = new URL(share.url).pathname.split('/').pop();
+    expect((await playback.request.get(`/api/recordings/shared/${raw}`)).status()).toBe(404);
+    await anon.close();
+  }
   host.on('dialog', (d) => d.accept());
   await host.getByRole('button', { name: 'End for everyone' }).click();
   await expect(guest.getByText('That’s a wrap.')).toBeVisible({ timeout: 10000 });
