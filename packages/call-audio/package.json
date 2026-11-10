@@ -1,0 +1,15 @@
+{
+  "name": "@meet8/call-audio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@shiguredo/noise-suppression": "2025.1.0"
+  },
+  "peerDependencies": {
+    "livekit-client": "^2.22.1",
+    "react": "^19.1.0"
+  }
+}

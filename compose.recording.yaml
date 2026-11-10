@@ -1,0 +1,48 @@
+# Combine compose.yaml, compose.media.yaml and this file. See deploy/RECORDING.md.
+services:
+  app:
+    environment:
+      MEET8_RECORDING_ENABLED: 'true'
+      MEET8_RECORDING_DIRECTORY: /recordings
+    volumes:
+      - ${MEET8_RECORDING_PATH:?Set private recording directory}:/recordings:ro
+  redis:
+    image: redis:8.10.3-alpine@sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80
+    command: [redis-server, --requirepass, '${MEET8_REDIS_PASSWORD:?Set Redis password}']
+    networks:
+      recording:
+        ipv4_address: 192.168.249.2
+    restart: unless-stopped
+  media:
+    depends_on: [redis]
+    networks:
+      default: {}
+      recording:
+        ipv4_address: 192.168.249.4
+  media-firewall:
+    environment:
+      MEET8_EGRESS_SOURCE_IP: 192.168.249.3
+  egress:
+    image: ${MEET8_EGRESS_IMAGE:?Set tested version or digest of livekit/egress}
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    volumes:
+      - ${MEET8_EGRESS_CONFIG:?Set private Egress config path}:/etc/egress.yaml:ro
+      - ${MEET8_RECORDING_PATH:?Set private recording directory}:/recordings
+    depends_on: [redis, media]
+    networks:
+      recording:
+        ipv4_address: 192.168.249.3
+    cpus: 6
+    mem_limit: 6g
+    shm_size: 1gb
+    restart: unless-stopped
+
+networks:
+  recording:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: br-meet8-rec
+    ipam:
+      config:
+        - subnet: 192.168.249.0/28

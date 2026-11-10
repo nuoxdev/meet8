@@ -1,6 +1,6 @@
 # Meet8 standalone meeting application
 
-Status: design for approval. No product implementation or deployment yet.
+Status: design approved on 2026-11-08. Core implementation is on sc/meet8-standalone; advanced Connect parity and production deployment remain pending. See docs/PARITY.md and docs/VERIFICATION.md.
 
 ## Purpose and confirmed requirements
 

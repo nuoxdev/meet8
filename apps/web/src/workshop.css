@@ -1,0 +1,211 @@
+.meeting-policy-fields {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.meeting-policy-fields legend {
+  font-size: 15px;
+  font-weight: 650;
+  margin-block-end: 12px;
+}
+.meeting-policy-fields > p {
+  font-size: 12px;
+  color: var(--muted);
+}
+.meeting-policy-fields label {
+  font-size: 12px;
+}
+.permission-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.permission-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-secondary);
+  flex-shrink: 0;
+}
+.host-controls {
+  padding: 18px;
+  overflow: auto;
+}
+.room-panel {
+  overflow: auto;
+}
+.room-panel .messages {
+  min-height: 100px;
+}
+.live-shell .room-people {
+  overflow: auto;
+  padding: 16px;
+  list-style: none;
+}
+.live-shell .room-people > li {
+  display: block;
+  padding-block: 16px;
+  border-block-end: 1px solid var(--line);
+}
+.participant-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.participant-summary small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  margin-block-start: 4px;
+}
+.participant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-start: 12px;
+}
+.participant-actions button {
+  font-size: 11px;
+}
+.mute-all {
+  margin: 16px;
+}
+.chat-paused {
+  font-size: 12px;
+  padding: 12px;
+  margin: 0;
+  color: var(--muted);
+  background: var(--paper);
+}
+.live-shell .room-panel h2 {
+  font-size: 18px;
+  letter-spacing: -0.3px;
+}
+.room-panel .recordings-panel {
+  margin: 12px;
+}
+.recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+  background: var(--brand-secondary);
+  color: var(--brand-secondary-ink);
+}
+.live-shell .live-header .language-switcher {
+  width: auto;
+}
+.live-shell .live-title {
+  flex-shrink: 1;
+}
+.media-policy-note {
+  font-size: 10px;
+  max-width: 220px;
+  color: var(--muted);
+}
+.room-error {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+}
+.room-panel .messages article header {
+  gap: 6px;
+}
+.room-panel .messages article header .icon-button {
+  margin-inline-start: auto;
+}
+.live-shell .lk-control-bar button[data-lk-source='screen_share']::after,
+.live-shell .lk-control-bar button[data-lk-source='screen_share'][data-lk-enabled='true']::after,
+.live-shell .lk-control-bar .lk-disconnect-button::after {
+  content: attr(aria-label);
+}
+.meeting-recordings {
+  flex: 0 0 100%;
+  min-width: 0;
+  width: 100%;
+  font-size: 12px;
+}
+.meeting-recordings summary {
+  cursor: pointer;
+  padding-block: 10px;
+  color: var(--pine);
+  font-weight: 600;
+}
+.meeting-recordings .recordings-panel {
+  margin: 12px 0;
+}
+.schedule-permissions {
+  margin-block: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+.schedule-permissions > summary {
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-block-end: 8px;
+}
+.recordings-panel button,
+.recordings-panel a {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--brand-secondary, #253b57);
+  color: var(--brand-secondary-ink, #fff);
+  font-size: 12px;
+}
+.recordings-panel p,
+.recordings-panel li {
+  font-size: 12px;
+}
+.recordings-panel .recording-actions {
+  gap: 8px;
+}
+@media (max-width: 480px) {
+  .live-shell .live-header .company-brand {
+    flex: 1 1 55%;
+  }
+  .live-shell .live-header .language-switcher {
+    flex: 0 0 auto;
+  }
+  .live-shell .live-title {
+    flex: 1 1 100%;
+  }
+  .live-shell .live-footer {
+    gap: 4px;
+  }
+  .live-shell .live-footer > button {
+    min-width: 40px;
+    min-height: 44px;
+    padding: 8px;
+  }
+  .media-policy-note {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .room-panel .participant-actions .small {
+    padding: 8px;
+    min-height: 36px;
+  }
+}
+
+.room-reconnecting {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline: 12px;
+  z-index: 20;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #172523;
+  color: white;
+  pointer-events: auto;
+}

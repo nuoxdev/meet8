@@ -1,0 +1,28 @@
+# Combine with compose.yaml for private-signaling self-hosted media.
+services:
+  app:
+    environment:
+      LIVEKIT_MODE: self-hosted-gateway
+      LIVEKIT_INTERNAL_URL: http://media:7880
+    depends_on:
+      media:
+        condition: service_started
+  media:
+    image: livekit/livekit-server@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    command: ['--config', '/etc/livekit.yaml']
+    volumes:
+      - ${MEET8_LIVEKIT_CONFIG:?Set the server-only LiveKit config path}:/etc/livekit.yaml:ro
+    # RTC only. Signaling 7880 is intentionally not published.
+    ports:
+      - ${MEET8_MEDIA_BIND_IP:-127.0.0.1}:7981:7981/tcp
+      - ${MEET8_MEDIA_BIND_IP:-127.0.0.1}:51100-51200:51100-51200/udp
+    restart: unless-stopped
+  media-firewall:
+    image: ${MEET8_FIREWALL_IMAGE:-meet8-firewall:local}
+    build: deploy/firewall
+    network_mode: host
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/run]
+    restart: unless-stopped

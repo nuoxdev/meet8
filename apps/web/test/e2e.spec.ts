@@ -1,0 +1,254 @@
+import { test, expect, type Page } from '@playwright/test';
+async function login(page: Page, email: string, name: string) {
+  await page.getByLabel('Your name').fill(name);
+  await page.getByLabel('Email address').fill(email);
+  await page.getByRole('button', { name: 'Send sign-in code' }).click();
+  const code = await page.getByTestId('development-code').textContent();
+  await page.getByLabel('Verification code').fill(code!.trim());
+  await page.getByRole('button', { name: 'Verify and continue' }).click();
+}
+test('owner provisions an organization, manager schedules branded meetings, guests wait and invitation-only access is enforced', async ({
+  page,
+  browser,
+}) => {
+  await page.goto('/');
+  await login(page, 'owner@example.com', 'Platform Owner');
+  await page.getByRole('button', { name: 'New organization' }).click();
+  await page.getByLabel('Company name').fill('Element8');
+  await page.getByLabel('Organization address').fill('element8');
+  await page.getByLabel('Manager email').fill('manager@example.com');
+  await page.getByRole('button', { name: 'Create organization', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your next conversation.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await login(page, 'manager@example.com', 'Organization Manager');
+  await page.getByRole('button', { name: 'Schedule a meeting' }).click();
+  await page.getByLabel('Meeting title').fill('Client design review');
+  await page.getByRole('button', { name: 'Create meeting', exact: true }).click();
+  await expect(page.getByText('Client design review', { exact: true })).toBeVisible();
+  const href = await page
+    .getByRole('link', { name: 'Open Client design review' })
+    .getAttribute('href');
+  expect(href).toContain('/o/element8/meet/');
+  const guest = await browser.newContext();
+  const gp = await guest.newPage();
+  await gp.goto(href!);
+  await expect(gp.getByRole('heading', { name: 'Client design review' })).toBeVisible();
+  await expect(gp.getByText('Element8', { exact: true }).first()).toBeVisible();
+  await gp.getByLabel('Your name').fill('Client Guest');
+  await gp.getByRole('button', { name: 'Join meeting', exact: true }).click();
+  await expect(gp.getByText('Waiting for the host')).toBeVisible();
+  await gp.route('**/api/meet/*/session', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'Temporary connection problem. Retrying.' }),
+    }),
+  );
+  await expect(gp.getByRole('alert')).toContainText('Temporary connection problem');
+  await expect(gp.getByText('Waiting for the host')).toBeVisible();
+  await gp.unroute('**/api/meet/*/session');
+  await page.getByRole('button', { name: 'Schedule a meeting' }).click();
+  await page.getByLabel('Meeting title').fill('Private review');
+  await page.getByLabel('Invited email addresses only').check();
+  await page.getByLabel('Invite email addresses').fill('client@example.com');
+  await page.getByRole('button', { name: 'Create meeting', exact: true }).click();
+  const privateHref = await page
+    .getByRole('link', { name: 'Open Private review' })
+    .getAttribute('href');
+  await gp.goto(privateHref!);
+  await expect(gp.getByText('Verify your invited email')).toBeVisible();
+  await page.screenshot({ path: 'docs/dashboard-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: 'docs/dashboard-mobile.png', fullPage: true });
+  await guest.close();
+});
+
+test('a delayed save refresh cannot replace another organization’s meeting list', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const challenge = await page.request.post('/api/auth/request', {
+    data: { email: 'owner@example.com', name: 'Owner' },
+  });
+  const code = (await challenge.json()).developmentCode;
+  await page.request.post('/api/auth/verify', { data: { email: 'owner@example.com', code } });
+  const suffix = Date.now();
+  const a = await (
+    await page.request.post('/api/orgs', {
+      data: { name: 'Company A', slug: `a-${suffix}`, managerEmail: 'owner@example.com' },
+    })
+  ).json();
+  const b = await (
+    await page.request.post('/api/orgs', {
+      data: { name: 'Company B', slug: `b-${suffix}`, managerEmail: 'owner@example.com' },
+    })
+  ).json();
+  const payload = (title: string) => ({
+    title,
+    description: '',
+    scheduledAt: new Date().toISOString(),
+    durationMinutes: 30,
+    timeZone: 'Asia/Dubai',
+    access: 'link',
+    invitees: [],
+  });
+  await page.request.post(`/api/orgs/${a.id}/meetings`, {
+    data: payload('Company A private meeting'),
+  });
+  await page.request.post(`/api/orgs/${b.id}/meetings`, {
+    data: payload('Company B private meeting'),
+  });
+  await page.evaluate((id) => sessionStorage.setItem('meet8-org', id), a.id);
+  await page.reload();
+  await expect(page.getByRole('link', { name: 'Open Company A private meeting' })).toBeVisible();
+  let release!: () => void;
+  const held = new Promise<void>((r) => (release = r));
+  let entered!: () => void;
+  const intercepted = new Promise<void>((r) => (entered = r));
+  await page.route(`**/api/orgs/${a.id}/meetings`, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    entered();
+    await held;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await intercepted;
+  await page.getByLabel('Select organization').selectOption(b.id);
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+  const completed = page.waitForResponse((r) => r.url().includes(`/api/orgs/${a.id}/meetings`));
+  release();
+  await completed;
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.getByRole('link', { name: 'Open Company A private meeting' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+  // Also hold the mutation response until after another organization has loaded.
+  await page.getByLabel('Select organization').selectOption(a.id);
+  await expect(page.getByRole('link', { name: 'Open Company A private meeting' })).toBeVisible();
+  let releaseMutation!: () => void;
+  const heldMutation = new Promise<void>((r) => (releaseMutation = r));
+  let mutationEntered!: () => void;
+  const interceptedMutation = new Promise<void>((r) => (mutationEntered = r));
+  await page.route(`**/api/orgs/${a.id}/meetings/*`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    const response = await route.fetch();
+    mutationEntered();
+    await heldMutation;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await interceptedMutation;
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Select organization').selectOption(b.id);
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+  const mutationComplete = page.waitForResponse((r) => r.request().method() === 'PATCH');
+  releaseMutation();
+  await mutationComplete;
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.getByRole('link', { name: 'Open Company B private meeting' })).toBeVisible();
+});
+
+test('dialogs keep keyboard focus inside and close with Escape', async ({ page }) => {
+  await page.goto('/');
+  const challenge = await page.request.post('/api/auth/request', {
+    data: { email: 'owner@example.com', name: 'Owner' },
+  });
+  await page.request.post('/api/auth/verify', {
+    data: { email: 'owner@example.com', code: (await challenge.json()).developmentCode },
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'New organization' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(
+    page.getByRole('button', { name: 'Create organization', exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('brand settings preview and save the complete palette across the dashboard and customer entry on mobile', async ({
+  page,
+  browser,
+}) => {
+  await page.goto('/');
+  const challenge = await page.request.post('/api/auth/request', {
+    data: { email: 'owner@example.com', name: 'Brand Owner' },
+  });
+  await page.request.post('/api/auth/verify', {
+    data: { email: 'owner@example.com', code: (await challenge.json()).developmentCode },
+  });
+  const org = await (
+    await page.request.post('/api/orgs', {
+      data: {
+        name: 'Customer Academy',
+        slug: `academy-${Date.now()}`,
+        managerEmail: 'owner@example.com',
+      },
+    })
+  ).json();
+  await page.evaluate((id) => sessionStorage.setItem('meet8-org', id), org.id);
+  await page.reload();
+  await page.getByRole('button', { name: 'Organization', exact: true }).click();
+  await page.getByLabel('Primary color', { exact: true }).fill('#eeee22');
+  await page.getByLabel('Secondary color', { exact: true }).fill('#402080');
+  await page.getByLabel('Accent color', { exact: true }).fill('#ff88aa');
+  expect(
+    await page
+      .getByLabel('Brand palette preview')
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-accent').trim()),
+  ).toBe('#ff88aa');
+  await page.getByRole('button', { name: 'Save branding', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Organization branding saved.' }),
+  ).toHaveText('Organization branding saved.');
+  await page.reload();
+  expect(
+    await page
+      .locator('.app-shell')
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-secondary').trim()),
+  ).toBe('#402080');
+  await expect(page.getByText('Professional workshops. Your brand.')).toBeVisible();
+  const meeting = await (
+    await page.request.post(`/api/orgs/${org.id}/meetings`, {
+      data: {
+        title: 'A customer workshop with a long title that wraps on smaller phones',
+        scheduledAt: new Date().toISOString(),
+        durationMinutes: 60,
+        timeZone: 'Asia/Dubai',
+        access: 'link',
+        invitees: [],
+      },
+    })
+  ).json();
+  const guestContext = await browser.newContext();
+  const guest = await guestContext.newPage();
+  await guest.goto(`/o/${org.slug}/meet/${meeting.code}`);
+  for (const width of [320, 390, 768, 1280]) {
+    await guest.setViewportSize({ width, height: 844 });
+    await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();
+    expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(
+      await guest
+        .locator('.meeting-page')
+        .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-accent').trim()),
+    ).toBe('#ff88aa');
+    await guest.screenshot({ path: `.superpowers/join-page-${width}.png`, fullPage: true });
+  }
+  await page.getByRole('button', { name: 'Organization', exact: true }).click();
+  await expect(page.locator('.nav-item.active')).toHaveCSS('background-color', 'rgb(64, 32, 128)');
+  await page.screenshot({ path: '.superpowers/branding-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '.superpowers/branding-mobile.png', fullPage: true });
+  await guestContext.close();
+});

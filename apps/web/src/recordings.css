@@ -1,0 +1,71 @@
+.recordings-panel {
+  border: 1px solid var(--border, #dce2eb);
+  padding: 1rem;
+  border-radius: 14px;
+  margin-block: 1rem;
+  background: var(--surface, #fff);
+}
+.recordings-heading,
+.recording-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.recordings-heading {
+  justify-content: space-between;
+}
+.recordings-heading h3 {
+  margin: 0;
+}
+.recording-note {
+  font-size: 0.85rem;
+  color: #626b7d;
+}
+.recordings-panel ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.recordings-panel li {
+  padding-block: 1rem;
+  border-block-start: 1px solid #e4e8ef;
+}
+.recording-status {
+  display: inline-block;
+  margin-inline: 0.6rem;
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 100px;
+  background: #e9edf4;
+}
+.recording-recording {
+  color: #ac253c;
+  background: #fee8eb;
+}
+.recording-ready {
+  color: #176849;
+  background: #dcf6ea;
+}
+.recording-actions {
+  margin-block-start: 0.6rem;
+}
+.recording-actions label {
+  width: 100%;
+  font-size: 0.85rem;
+}
+.recording-actions input {
+  display: block;
+  width: 100%;
+  direction: ltr;
+}
+.shared-recording {
+  max-width: 1000px;
+  margin: 3rem auto;
+  padding: 1rem;
+}
+.shared-recording video {
+  width: 100%;
+  background: #101522;
+  border-radius: 14px;
+}
