@@ -126,7 +126,8 @@
   content: attr(aria-label);
 }
 .meeting-recordings {
-  flex-basis: 100%;
+  flex: 0 0 100%;
+  min-width: 0;
   width: 100%;
   font-size: 12px;
 }

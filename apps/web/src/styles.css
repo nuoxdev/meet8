@@ -700,6 +700,7 @@ nav {
 }
 .meeting-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 20px;
   padding: 23px 0;
