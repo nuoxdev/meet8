@@ -23,6 +23,8 @@ export type Organization = {
   name: string;
   role: 'owner' | 'manager' | 'member';
   color: string;
+  secondaryColor?: string;
+  accentColor?: string;
   logoDataUrl: string;
   timeZone: string;
 };
@@ -53,7 +55,10 @@ export type Preview = {
   timeZone: string;
   access: 'link' | 'invited';
   status: Meeting['status'];
-  organization: { name: string; slug: string; color: string; logoDataUrl: string };
+  organization: Pick<
+    Organization,
+    'name' | 'slug' | 'color' | 'secondaryColor' | 'accentColor' | 'logoDataUrl'
+  >;
 };
 export const meetingLink = (org: { slug: string }, meeting: { code: string }) =>
   `${window.location.origin}/o/${org.slug}/meet/${meeting.code}`;

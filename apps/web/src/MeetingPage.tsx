@@ -160,7 +160,14 @@ export function MeetingPage({
       />
     );
   return (
-    <div className="meeting-page" style={brandStyle(p.organization.color)}>
+    <div
+      className="meeting-page"
+      style={brandStyle(
+        p.organization.color,
+        p.organization.secondaryColor,
+        p.organization.accentColor,
+      )}
+    >
       <header className="public-header">
         <CompanyBrand organization={p.organization} />
         <a className="text-button" href="/">
@@ -170,7 +177,7 @@ export function MeetingPage({
       </header>
       <main className="join-layout">
         <section className="join-intro">
-          <span className="eyebrow">A CONVERSATION WITH {p.organization.name.toUpperCase()}</span>
+          <span className="eyebrow">HOSTED BY {p.organization.name.toUpperCase()}</span>
           <h1>{p.title}</h1>
           <p className="join-time">
             <Clock size={17} />
@@ -280,7 +287,7 @@ export function MeetingPage({
               ) : (
                 <>
                   <span className="eyebrow">
-                    {blocked ? 'SEE YOU NEXT TIME' : 'MAKE YOURSELF AT HOME'}
+                    {blocked ? 'SEE YOU NEXT TIME' : 'WORKSHOP ACCESS'}
                   </span>
                   <h2>
                     {p.status === 'ended'
@@ -394,7 +401,7 @@ export function MeetingPage({
       </main>
       <footer className="public-footer">
         <Wordmark />
-        <span>A little closer, from anywhere.</span>
+        <span>Professional workshops. Meaningful connections.</span>
       </footer>
     </div>
   );

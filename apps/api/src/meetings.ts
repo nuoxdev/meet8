@@ -46,6 +46,8 @@ function publicMeeting(s: State, m: Meeting) {
       name: org.name,
       slug: org.slug,
       color: org.color,
+      secondaryColor: org.secondaryColor,
+      accentColor: org.accentColor,
       logoDataUrl: org.logoDataUrl,
     },
   };

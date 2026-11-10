@@ -205,6 +205,8 @@ export async function buildApp(options: AppOptions) {
         name: b.name,
         slug: b.slug,
         color: '#1c5947',
+        secondaryColor: '#253b57',
+        accentColor: '#ddedbb',
         logoDataUrl: '',
         timeZone: 'Asia/Dubai',
         createdAt: now(),
@@ -227,6 +229,14 @@ export async function buildApp(options: AppOptions) {
       .object({
         name: displayName.optional(),
         color: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+        secondaryColor: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional(),
+        accentColor: z
           .string()
           .regex(/^#[0-9a-fA-F]{6}$/)
           .optional(),

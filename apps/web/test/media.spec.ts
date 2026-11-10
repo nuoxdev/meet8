@@ -125,12 +125,38 @@ test('two browsers exchange camera and microphone media, chat, and end together'
         )
         .toBe(true);
   }
+  for (const p of [host, guest]) await p.getByRole('button', { name: 'Chat', exact: true }).click();
   await host.getByLabel('Meeting message').fill('A real conversation');
   await host.getByRole('button', { name: 'Send message' }).click();
   await expect(guest.getByText('A real conversation', { exact: true })).toBeVisible();
   await guest.getByRole('button', { name: 'Raise hand', exact: true }).click();
   await host.getByRole('button', { name: /people$/ }).click();
   await expect(host.getByText('Meeting Guest ✋')).toBeVisible();
+  await guest.getByRole('button', { name: 'Chat', exact: true }).click();
+  for (const width of [320, 390, 768, 1280]) {
+    await guest.setViewportSize({ width, height: 844 });
+    await expect(guest.getByRole('button', { name: 'Microphone', exact: true })).toBeVisible();
+    await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toBeVisible();
+    await expect(guest.getByRole('button', { name: 'Leave', exact: true })).toBeVisible();
+    expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    const controls = guest.locator('.lk-control-bar');
+    const box = await controls.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+    const stage = await guest.locator('.room-shell').boundingBox();
+    for (const label of ['Microphone', 'Camera', 'Leave']) {
+      const button = guest.getByRole('button', { name: label, exact: true });
+      const bounds = await button.boundingBox();
+      expect(bounds!.y).toBeGreaterThanOrEqual(stage!.y);
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(stage!.y + stage!.height + 1);
+    }
+    for (const source of ['microphone', 'camera']) {
+      const control = guest.locator(`button[data-lk-source="${source}"]`);
+      expect(await control.evaluate((el) => getComputedStyle(el).fontSize)).toBe('0px');
+    }
+    await guest.screenshot({ path: `.superpowers/live-room-${width}.png` });
+  }
   await host.screenshot({ path: 'docs/meeting-room.png', fullPage: true });
   await guest.getByRole('button', { name: 'Leave', exact: true }).click();
   await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();

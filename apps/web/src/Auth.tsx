@@ -47,13 +47,13 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
             <span>Good conversations start here.</span>
           </header>
           <div className="auth-art">
-            <span className="eyebrow">A LITTLE CLOSER, FROM ANYWHERE</span>
+            <span className="eyebrow">BUILT FOR CUSTOMER CONNECTIONS</span>
             <h1>
-              Make room
+              Bring customers
               <br />
-              for a real
+              together for
               <br />
-              <em>connection.</em>
+              <em>what’s next.</em>
             </h1>
             <div className="orbit-art" aria-hidden="true">
               <div />
@@ -62,16 +62,16 @@ export function Auth({ onDone, compact = false }: { onDone: () => void; compact?
               <span>8</span>
             </div>
             <p>
-              Your team. Your brand.
+              Your expertise. Your brand.
               <br />
-              One link to bring everyone together.
+              Professional workshops and meetings, in one link.
             </p>
           </div>
         </>
       )}
       <section className="auth-card">
         <span className="eyebrow">WELCOME TO MEET8</span>
-        <h2>{sent ? 'Check your inbox.' : 'Let’s get together.'}</h2>
+        <h2>{sent ? 'Check your inbox.' : 'Welcome to Meet8.'}</h2>
         <p>
           {sent
             ? `We sent a six-digit code to ${email}.`

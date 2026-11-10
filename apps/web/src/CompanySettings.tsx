@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, UserPlus, Trash2 } from 'lucide-react';
 import { api, type Organization } from './api';
+import { brandStyle } from './branding';
 type Member = { id: string; email: string; role: string };
 export function CompanySettings({
   org,
@@ -14,6 +15,9 @@ export function CompanySettings({
   const [notice, setNotice] = useState('');
   const [logo, setLogo] = useState(org.logoDataUrl);
   const [busy, setBusy] = useState(false);
+  const [primary, setPrimary] = useState(org.color);
+  const [secondary, setSecondary] = useState(org.secondaryColor ?? '#253b57');
+  const [accent, setAccent] = useState(org.accentColor ?? '#ddedbb');
   async function load() {
     try {
       setMembers(await api(`/orgs/${org.id}/members`));
@@ -33,7 +37,7 @@ export function CompanySettings({
         <br />
         <em>Your space.</em>
       </h1>
-      <p className="intro">A familiar welcome for every person who joins you.</p>
+      <p className="intro">Create a consistent, professional experience for your customers.</p>
       {error && (
         <p className="error banner" role="alert">
           {error}
@@ -47,7 +51,7 @@ export function CompanySettings({
       <div className="settings-grid">
         <section className="settings-card">
           <h2>Organization branding</h2>
-          <p>Applied to your meeting links and rooms.</p>
+          <p>Customize your dashboard, workshop links, and meeting rooms.</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -58,7 +62,9 @@ export function CompanySettings({
               try {
                 await api(`/orgs/${org.id}`, 'PATCH', {
                   name: f.get('name'),
-                  color: f.get('color'),
+                  color: primary,
+                  secondaryColor: secondary,
+                  accentColor: accent,
                   timeZone: f.get('timeZone'),
                   logoDataUrl: logo,
                 });
@@ -75,11 +81,48 @@ export function CompanySettings({
               Company name
               <input name="name" required maxLength={100} defaultValue={org.name} />
             </label>
+            <fieldset className="brand-palette">
+              <legend>Brand colors</legend>
+              <p>
+                Primary for main actions, secondary for supporting elements, and accent for
+                highlights. Text contrast adjusts automatically.
+              </p>
+              <div className="palette-inputs">
+                {(
+                  [
+                    ['Primary color', primary, setPrimary],
+                    ['Secondary color', secondary, setSecondary],
+                    ['Accent color', accent, setAccent],
+                  ] as const
+                ).map(([label, value, update]) => (
+                  <label key={label}>
+                    {label}
+                    <input
+                      aria-label={label}
+                      type="color"
+                      value={value}
+                      onChange={(e) => update(e.target.value)}
+                    />
+                    <small>{value.toUpperCase()}</small>
+                  </label>
+                ))}
+              </div>
+              <div
+                className="brand-preview"
+                style={brandStyle(primary, secondary, accent)}
+                aria-label="Brand palette preview"
+              >
+                <span className="palette-preview-label">CUSTOMER EXPERIENCE PREVIEW</span>
+                <strong>Your next customer workshop</strong>
+                <p>A branded welcome, from invitation to conversation.</p>
+                <div className="preview-actions">
+                  <span className="preview-primary">Join workshop</span>
+                  <span className="preview-secondary">Workshop details</span>
+                  <span className="preview-accent">Your brand</span>
+                </div>
+              </div>
+            </fieldset>
             <div className="form-grid">
-              <label>
-                Brand color
-                <input type="color" name="color" defaultValue={org.color} />
-              </label>
               <label>
                 Default time zone
                 <input name="timeZone" required defaultValue={org.timeZone} />
@@ -119,7 +162,7 @@ export function CompanySettings({
           </form>
         </section>
         <section className="settings-card">
-          <h2>The people in your space</h2>
+          <h2>Workshop hosts and managers</h2>
           <p>Add their email, then ask them to sign in to Meet8.</p>
           <form
             className="member-form"

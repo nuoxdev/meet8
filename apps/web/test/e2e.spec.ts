@@ -173,3 +173,82 @@ test('dialogs keep keyboard focus inside and close with Escape', async ({ page }
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('brand settings preview and save the complete palette across the dashboard and customer entry on mobile', async ({
+  page,
+  browser,
+}) => {
+  await page.goto('/');
+  const challenge = await page.request.post('/api/auth/request', {
+    data: { email: 'owner@example.com', name: 'Brand Owner' },
+  });
+  await page.request.post('/api/auth/verify', {
+    data: { email: 'owner@example.com', code: (await challenge.json()).developmentCode },
+  });
+  const org = await (
+    await page.request.post('/api/orgs', {
+      data: {
+        name: 'Customer Academy',
+        slug: `academy-${Date.now()}`,
+        managerEmail: 'owner@example.com',
+      },
+    })
+  ).json();
+  await page.evaluate((id) => sessionStorage.setItem('meet8-org', id), org.id);
+  await page.reload();
+  await page.getByRole('button', { name: 'Organization', exact: true }).click();
+  await page.getByLabel('Primary color', { exact: true }).fill('#eeee22');
+  await page.getByLabel('Secondary color', { exact: true }).fill('#402080');
+  await page.getByLabel('Accent color', { exact: true }).fill('#ff88aa');
+  expect(
+    await page
+      .getByLabel('Brand palette preview')
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-accent').trim()),
+  ).toBe('#ff88aa');
+  await page.getByRole('button', { name: 'Save branding', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Organization branding saved.' }),
+  ).toHaveText('Organization branding saved.');
+  await page.reload();
+  expect(
+    await page
+      .locator('.app-shell')
+      .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-secondary').trim()),
+  ).toBe('#402080');
+  await expect(page.getByText('Professional workshops. Your brand.')).toBeVisible();
+  const meeting = await (
+    await page.request.post(`/api/orgs/${org.id}/meetings`, {
+      data: {
+        title: 'A customer workshop with a long title that wraps on smaller phones',
+        scheduledAt: new Date().toISOString(),
+        durationMinutes: 60,
+        timeZone: 'Asia/Dubai',
+        access: 'link',
+        invitees: [],
+      },
+    })
+  ).json();
+  const guestContext = await browser.newContext();
+  const guest = await guestContext.newPage();
+  await guest.goto(`/o/${org.slug}/meet/${meeting.code}`);
+  for (const width of [320, 390, 768, 1280]) {
+    await guest.setViewportSize({ width, height: 844 });
+    await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();
+    expect(await guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    expect(
+      await guest
+        .locator('.meeting-page')
+        .evaluate((el) => getComputedStyle(el).getPropertyValue('--brand-accent').trim()),
+    ).toBe('#ff88aa');
+    await guest.screenshot({ path: `.superpowers/join-page-${width}.png`, fullPage: true });
+  }
+  await page.getByRole('button', { name: 'Organization', exact: true }).click();
+  await expect(page.locator('.nav-item.active')).toHaveCSS('background-color', 'rgb(64, 32, 128)');
+  await page.screenshot({ path: '.superpowers/branding-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '.superpowers/branding-mobile.png', fullPage: true });
+  await guestContext.close();
+});

@@ -188,7 +188,10 @@ function Dashboard({
   );
   const manager = org?.role !== 'member';
   return (
-    <div className="app-shell" style={brandStyle(org?.color ?? '#1c5947')}>
+    <div
+      className="app-shell"
+      style={brandStyle(org?.color ?? '#1c5947', org?.secondaryColor, org?.accentColor)}
+    >
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -249,8 +252,10 @@ function Dashboard({
         </nav>
         <div className="sidebar-note">
           <span className="tiny-orbit">✳</span>
-          <h3>A space that’s yours.</h3>
-          <p>Every conversation, in your company’s colors.</p>
+          <h3>Professional workshops. Your brand.</h3>
+          <p>
+            Host customer workshops and meetings in a branded experience built around your business.
+          </p>
         </div>
         <div className="profile">
           <span className="avatar">{identity.user.name.slice(0, 1)}</span>
@@ -278,7 +283,7 @@ function Dashboard({
             </span>
           </span>
           <span className="topbar-label">
-            <span className="status-dot" /> YOUR SPACE TO CONNECT
+            <span className="status-dot" /> CUSTOMER WORKSHOPS & MEETINGS
           </span>
         </header>
         <main id="main">
@@ -315,7 +320,7 @@ function Dashboard({
               )}
             </section>
           ) : view === 'settings' ? (
-            <CompanySettings org={org} refresh={refresh} />
+            <CompanySettings key={org.id} org={org} refresh={refresh} />
           ) : (
             <>
               <section className="dashboard-hero">

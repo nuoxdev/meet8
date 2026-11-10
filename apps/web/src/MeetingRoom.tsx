@@ -32,7 +32,7 @@ export function MeetingRoom({
   onEnd: () => void;
   onDisconnected: () => void;
 }) {
-  const [panel, setPanel] = useState<'chat' | 'people' | null>('chat');
+  const [panel, setPanel] = useState<'chat' | 'people' | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState('');
   const [error, setError] = useState('');
@@ -55,7 +55,14 @@ export function MeetingRoom({
     };
   }, [code]);
   return (
-    <div className="live-shell guest-live-room" style={brandStyle(state.organization.color)}>
+    <div
+      className="live-shell guest-live-room"
+      style={brandStyle(
+        state.organization.color,
+        state.organization.secondaryColor,
+        state.organization.accentColor,
+      )}
+    >
       <header className="live-header">
         <CompanyBrand organization={state.organization} />
         <span className="live-title">
@@ -67,7 +74,7 @@ export function MeetingRoom({
         </button>
         {state.canHost && (
           <button
-            className="danger small"
+            className="secondary small end-meeting"
             onClick={() => {
               if (window.confirm('End this meeting for everyone?')) onEnd();
             }}
@@ -208,6 +215,9 @@ export function MeetingRoom({
       <footer className="live-footer">
         <button
           className={state.attendee.raised ? 'secondary raised' : 'secondary'}
+          aria-label={state.attendee.raised ? 'Lower hand' : 'Raise hand'}
+          title={state.attendee.raised ? 'Lower hand' : 'Raise hand'}
+          aria-pressed={state.attendee.raised}
           onClick={async () => {
             try {
               await api(`/meet/${code}/raise-hand`, 'POST', { raised: !state.attendee.raised });
@@ -217,18 +227,27 @@ export function MeetingRoom({
           }}
         >
           <Hand size={16} />
-          {state.attendee.raised ? 'Lower hand' : 'Raise hand'}
+          <span className="sr-only">{state.attendee.raised ? 'Lower hand' : 'Raise hand'}</span>
         </button>
         <button
           className="text-button"
+          aria-label={`${state.participants.length} people`}
+          title="Participants"
+          aria-expanded={panel === 'people'}
           onClick={() => setPanel(panel === 'people' ? null : 'people')}
         >
           <Users size={17} />
-          {state.participants.length} people
+          <span aria-hidden="true">{state.participants.length}</span>
         </button>
-        <button className="text-button" onClick={() => setPanel(panel === 'chat' ? null : 'chat')}>
+        <button
+          className="text-button"
+          aria-label="Chat"
+          title="Chat"
+          aria-expanded={panel === 'chat'}
+          onClick={() => setPanel(panel === 'chat' ? null : 'chat')}
+        >
           <MessageSquare size={17} />
-          Chat
+          <span className="sr-only">Chat</span>
         </button>
         <span className="muted">{state.organization.name} · Meet8</span>
         {error && (

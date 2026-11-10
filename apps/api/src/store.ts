@@ -5,6 +5,8 @@ export type Organization = {
   name: string;
   slug: string;
   color: string;
+  secondaryColor?: string;
+  accentColor?: string;
   logoDataUrl: string;
   timeZone: string;
   createdAt: string;

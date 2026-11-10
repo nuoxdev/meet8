@@ -120,9 +120,39 @@ export function GuestCallTools() {
   useEffect(() => {
     const roomElement = document.querySelector<HTMLElement>('.guest-live-room [data-lk-theme]');
     if (!roomElement) return;
-    const refresh = () => setControlBar(roomElement.querySelector<HTMLElement>('.lk-control-bar'));
+    const refresh = () => {
+      const bar = roomElement.querySelector<HTMLElement>('.lk-control-bar');
+      setControlBar(bar);
+      // LiveKit uses icon-only controls at small widths. Keep their names explicit
+      // for assistive technology and tooltips at every breakpoint.
+      for (const [source, label] of [
+        ['microphone', 'Microphone'],
+        ['camera', 'Camera'],
+        ['screen_share', 'Share screen'],
+      ]) {
+        const button = bar?.querySelector<HTMLButtonElement>(`button[data-lk-source="${source}"]`);
+        if (button) {
+          const action =
+            source === 'screen_share' && button.dataset.lkEnabled === 'true'
+              ? 'Stop sharing'
+              : label;
+          button.setAttribute('aria-label', action);
+          button.title = action;
+        }
+      }
+      const leave = bar?.querySelector<HTMLButtonElement>('.lk-disconnect-button');
+      if (leave) {
+        leave.setAttribute('aria-label', 'Leave');
+        leave.title = 'Leave meeting';
+      }
+    };
     const observer = new MutationObserver(refresh);
-    observer.observe(roomElement, { childList: true, subtree: true });
+    observer.observe(roomElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-lk-enabled'],
+    });
     refresh();
     return () => observer.disconnect();
   }, []);
