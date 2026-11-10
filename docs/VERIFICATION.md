@@ -1,6 +1,17 @@
-# Verification — 9 November 2026
+# Verification — 10 November 2026
 
-The core application is live as a **pilot** at https://meet8.nuox.io. Running application image/source commit: `4792b0ee01a4413565c7025e7b3fc0c7783448be`. This does not certify 100-person workshop capacity or full Desk8 Connect parity.
+The core application is live as a **pilot** at https://meet8.nuox.io. Running application image/source commit: `3c9233cc0c0980dc44ec08cf17c5c19d7face5a3`. This does not certify 100-person workshop capacity or full Desk8 Connect parity.
+
+## Latest customer workshop release
+
+- 31 API/repository/gateway/mail/branding/time/static-server tests passed locally with real PostgreSQL and LiveKit integrations enabled, zero skips. The server image build passed typecheck, 29 tests (2 provider integration checks skipped), production build, and dependency pruning with zero reported runtime vulnerabilities.
+- All five browser tests passed, including persisted supplementary palettes, public preview colors, tenant isolation, responsive join/live layouts at 320/390/768/1280 pixels and two-browser synthetic microphone/camera reception, chat, hand raising, leave/rejoin and ending.
+- Reviewer found one screen-share accessible-name mismatch; corrected the observer to synchronize the active label and reran the complete browser suite.
+- Created a permission-0600 database dump on the server and checked its archive listing. No restore drill was performed. The app-only update left the database, media, firewall, tunnel and Desk8 containers running; immediately preceding media checks showed zero connected participants.
+- The first activation automatically rolled back because its 30-second deadline was too short for Docker's health interval. Retried with a 90-second deadline; the exact new image is healthy. No data migration was required.
+- Public HTTPS health is OK, unsigned RTC returns401, and the supplied real workshop page renders without browser errors or horizontal overflow at all four tested widths. No attendee was added to the real workshop for verification.
+- SES accepted the requested real test email on 9 November after its configuration-set policy was fixed; acceptance is separate from recipient inbox confirmation. User reported normal operation on10 November.
+- See PRODUCTION-READINESS.md for release scope and remaining broad-rollout requirements. Historical pilot checks below describe the previous release.
 
 ## Completed checks
 
@@ -17,7 +28,7 @@ The core application is live as a **pilot** at https://meet8.nuox.io. Running ap
 
 ## Remaining boundaries
 
-- First real sign-in email delivery and customer-network/device UAT remain to be confirmed.
+- User reports normal operation; structured customer-network/device UAT and inbox-placement monitoring remain outstanding.
 - No100-person media load test was run. Production workshop sizing must include all publishers, visible subscriptions, reconnects, TURN-only clients and recording workload.
 - Recording/transcripts/AI/translation/file-chat parity remains pending; see PARITY.md.
 - The first-version PostgreSQL document repository serializes operations and needs indexed/scoped repositories and retention before broad commercial scale.
