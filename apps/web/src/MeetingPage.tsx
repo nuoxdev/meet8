@@ -1,7 +1,7 @@
 import { useLanguage, LanguageSwitcher } from './i18n';
 import { RecordingsPanel } from './Recordings';
 import { brandStyle } from './branding';
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   Video,
   ArrowRight,
@@ -16,6 +16,12 @@ import {
 import { api, RequestError, dateLabel, type Identity, type Preview } from './api';
 import { Auth, Wordmark } from './Auth';
 import { MeetingRoom, type RoomSession } from './MeetingRoom';
+import type { DisconnectReason } from 'livekit-client';
+import {
+  canRecoverDisconnect,
+  recoverJoinedConnection,
+  type MediaConnection,
+} from './meetingRecovery';
 export function MeetingPage({
   code,
   identity,
@@ -28,15 +34,20 @@ export function MeetingPage({
   const { t, language } = useLanguage();
   const [preview, setPreview] = useState<Preview | null>(null);
   const [state, setState] = useState<RoomSession | null>(null);
-  const [connection, setConnection] = useState<{
-    url: string;
-    token: string;
-    sessionId: string;
-    iceServers?: RTCIceServer[];
-    relayOnly?: boolean;
-  } | null>(null);
+  const [connection, setConnection] = useState<MediaConnection | null>(null);
+  const [recovery, setRecovery] = useState<'idle' | 'retrying' | 'stopped'>('idle');
+  const recoveryEnabled = useRef(true);
+  const recoveryController = useRef<AbortController | null>(null);
+  const remainingRecoveryAttempts = useRef(3);
+  const current = useRef({ connection, state, joined: false });
+  const cancelRecovery = useCallback(() => {
+    recoveryController.current?.abort();
+    recoveryController.current = null;
+  }, []);
   const [name, setName] = useState('');
   const [joined, setJoined] = useState(false);
+  current.current = { connection, state, joined };
+  useEffect(() => () => cancelRecovery(), [code, cancelRecovery]);
   const [showAuth, setShowAuth] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -45,9 +56,14 @@ export function MeetingPage({
   const poll = useCallback(async () => {
     const current = await api<RoomSession>(`/meet/${code}/session`);
     setState(current);
-    if (current.status !== 'live') setConnection(null);
+    if (current.status !== 'live') {
+      recoveryEnabled.current = current.status === 'scheduled';
+      cancelRecovery();
+      setRecovery(current.status === 'scheduled' ? 'idle' : 'stopped');
+      setConnection(null);
+    }
     return current;
-  }, [code]);
+  }, [code, cancelRecovery]);
   useEffect(() => {
     let stopped = false;
     api<Preview>(`/meet/${code}`)
@@ -79,11 +95,30 @@ export function MeetingPage({
         if (stopped) return;
         setState(s);
         setError('');
-        if (s.status !== 'live') setConnection(null);
+        const previous = current.current;
+        if (
+          s.status !== 'live' ||
+          (previous.connection &&
+            (s.sessionId !== previous.connection.sessionId ||
+              s.attendee.id !== previous.state?.attendee.id))
+        ) {
+          recoveryEnabled.current = s.status === 'scheduled';
+          cancelRecovery();
+          setRecovery(s.status === 'scheduled' ? 'idle' : 'stopped');
+          setConnection(null);
+          if (s.status === 'live') {
+            current.current.joined = false;
+            setJoined(false);
+          }
+        }
       } catch (e) {
         if (stopped) return;
         setError((e as Error).message);
         if (e instanceof RequestError && [401, 403, 404, 410].includes(e.status)) {
+          recoveryEnabled.current = false;
+          cancelRecovery();
+          setRecovery('stopped');
+          current.current.joined = false;
           setConnection(null);
           setJoined(false);
         }
@@ -95,27 +130,45 @@ export function MeetingPage({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [joined, code]);
+  }, [joined, code, cancelRecovery]);
   useEffect(() => {
-    if (!joined || state?.status !== 'live' || connection || !state.mediaReady) return;
+    if (
+      !joined ||
+      state?.status !== 'live' ||
+      connection ||
+      !state.mediaReady ||
+      recovery !== 'idle'
+    )
+      return;
     let stopped = false;
     api(`/meet/${code}/connection`, 'POST', {})
       .then((c) => {
-        if (!stopped) setConnection(c);
+        if (!stopped && c.sessionId === state.sessionId) setConnection(c);
+        else if (!stopped) {
+          setRecovery('stopped');
+          setJoined(false);
+        }
       })
       .catch((e) => {
-        if (!stopped) setError(e.message);
+        if (!stopped) {
+          setError(e.message);
+          setRecovery('stopped');
+        }
       });
     return () => {
       stopped = true;
     };
-  }, [joined, state?.status, state?.mediaReady, code]);
+  }, [joined, state?.status, state?.sessionId, state?.mediaReady, code, connection, recovery]);
   async function join() {
     setBusy(true);
     setError('');
     try {
       await api(`/meet/${code}/join`, 'POST', { name: identity?.user.name ?? name });
       await poll();
+      recoveryEnabled.current = true;
+      remainingRecoveryAttempts.current = 3;
+      setRecovery('idle');
+      setNotice('');
       setJoined(true);
     } catch (e) {
       setError((e as Error).message);
@@ -125,6 +178,11 @@ export function MeetingPage({
   }
   async function lifecycle(action: string) {
     if (!state?.orgId || !state.meetingId) return;
+    if (action === 'end') {
+      recoveryEnabled.current = false;
+      cancelRecovery();
+      setRecovery('stopped');
+    }
     setBusy(true);
     setError('');
     try {
@@ -137,6 +195,10 @@ export function MeetingPage({
     }
   }
   async function leave() {
+    current.current.joined = false;
+    recoveryEnabled.current = false;
+    cancelRecovery();
+    setRecovery('stopped');
     setConnection(null);
     setJoined(false);
     setState(null);
@@ -147,6 +209,58 @@ export function MeetingPage({
     }
     setNotice('You left the meeting.');
   }
+  const handleDisconnected = useCallback(
+    (reason?: DisconnectReason) => {
+      const snapshot = current.current;
+      if (!snapshot.joined || !recoveryEnabled.current || recoveryController.current) return;
+      if (!canRecoverDisconnect(reason) || !snapshot.connection || !snapshot.state) {
+        recoveryEnabled.current = false;
+        cancelRecovery();
+        setRecovery('stopped');
+        setConnection(null);
+        setNotice('The media connection ended. Check with your host before reconnecting.');
+        return;
+      }
+      const controller = new AbortController();
+      recoveryController.current = controller;
+      setRecovery('retrying');
+      setNotice('Reconnecting to the meeting…');
+      void recoverJoinedConnection({
+        expected: {
+          sessionId: snapshot.connection.sessionId,
+          attendeeId: snapshot.state.attendee.id,
+        },
+        signal: controller.signal,
+        remaining: remainingRecoveryAttempts,
+        session: () => api<RoomSession>(`/meet/${code}/session`),
+        connection: () => api<MediaConnection>(`/meet/${code}/connection`, 'POST', {}),
+      })
+        .then((fresh) => {
+          if (!controller.signal.aborted && current.current.joined) setConnection(fresh);
+        })
+        .catch((error) => {
+          if (controller.signal.aborted) return;
+          recoveryEnabled.current = false;
+          setRecovery('stopped');
+          setConnection(null);
+          setNotice('Unable to reconnect automatically. Check your connection and try again.');
+          if ([401, 403, 404, 409, 410].includes(error.status)) {
+            current.current.joined = false;
+            setJoined(false);
+            setError(error.message);
+          }
+        })
+        .finally(() => {
+          if (recoveryController.current === controller) recoveryController.current = null;
+        });
+    },
+    [code, cancelRecovery],
+  );
+  const handleConnected = useCallback(() => {
+    cancelRecovery();
+    setRecovery('idle');
+    setNotice('');
+  }, [cancelRecovery]);
   if (!preview)
     return (
       <main className="empty">
@@ -168,10 +282,9 @@ export function MeetingPage({
         state={state}
         onLeave={() => void leave()}
         onEnd={() => void lifecycle('end')}
-        onDisconnected={() => {
-          setConnection(null);
-          setNotice('The media connection ended. You can reconnect below.');
-        }}
+        onDisconnected={handleDisconnected}
+        onConnected={handleConnected}
+        reconnecting={recovery === 'retrying'}
       />
     );
   return (
@@ -288,10 +401,38 @@ export function MeetingPage({
                       className="primary wide"
                       onClick={async () => {
                         setError('');
+                        cancelRecovery();
+                        const expected = current.current.state?.sessionId;
+                        if (!current.current.joined || !expected) return;
+                        const controller = new AbortController();
+                        recoveryController.current = controller;
                         try {
-                          setConnection(await api(`/meet/${code}/connection`, 'POST', {}));
+                          const fresh = await api<MediaConnection>(
+                            `/meet/${code}/connection`,
+                            'POST',
+                            {},
+                          );
+                          if (
+                            controller.signal.aborted ||
+                            !current.current.joined ||
+                            current.current.state?.sessionId !== expected
+                          )
+                            return;
+                          if (fresh.sessionId !== expected) {
+                            setJoined(false);
+                            setError('The meeting session changed. Please check with the host.');
+                            return;
+                          }
+                          recoveryEnabled.current = true;
+                          remainingRecoveryAttempts.current = 3;
+                          setConnection(fresh);
+                          setRecovery('idle');
+                          setNotice('');
                         } catch (e) {
-                          setError((e as Error).message);
+                          if (!controller.signal.aborted) setError((e as Error).message);
+                        } finally {
+                          if (recoveryController.current === controller)
+                            recoveryController.current = null;
                         }
                       }}
                     >
@@ -369,7 +510,7 @@ export function MeetingPage({
               )}
               {error && (
                 <p className="error" role="alert">
-                  {error}
+                  {t(error)}
                 </p>
               )}
               {notice && (

@@ -1,7 +1,21 @@
 import { brandStyle } from './branding';
-import { useEffect, useState } from 'react';
-import { LiveKitRoom, RoomAudioRenderer, VideoConference } from '@livekit/components-react';
-import { DisconnectReason, VideoPresets } from 'livekit-client';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  VideoConference,
+  useConnectionState,
+  useRoomContext,
+} from '@livekit/components-react';
+import {
+  ConnectionState,
+  DisconnectReason,
+  VideoPresets,
+  RoomEvent,
+  Track,
+  type Participant,
+  type TrackPublication,
+} from 'livekit-client';
 import {
   Hand,
   MessageSquare,
@@ -54,6 +68,8 @@ export function MeetingRoom({
   onLeave,
   onEnd,
   onDisconnected,
+  onConnected,
+  reconnecting,
   onRefresh,
 }: {
   code: string;
@@ -61,10 +77,40 @@ export function MeetingRoom({
   state: RoomSession;
   onLeave: () => void;
   onEnd: () => void;
-  onDisconnected: () => void;
+  onDisconnected: (reason?: DisconnectReason) => void;
+  onConnected: () => void;
+  reconnecting: boolean;
   onRefresh: () => Promise<unknown>;
 }) {
   const { t, language } = useLanguage();
+  // Room constructor options are a snapshot for this joined Room. Call tools apply
+  // preference changes to the existing tracks, never by replacing the Room.
+  const [roomOptions] = useState(() => ({
+    adaptiveStream: true,
+    dynacast: true,
+    audioCaptureDefaults: guestAudioCaptureDefaults(),
+    videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+    publishDefaults: {
+      simulcast: true,
+      screenShareEncoding: { maxBitrate: 3000000, maxFramerate: 15 },
+    },
+  }));
+  const callbacks = useRef({ onLeave, onDisconnected, onConnected });
+  callbacks.current = { onLeave, onDisconnected, onConnected };
+  const handleDisconnected = useCallback((reason?: DisconnectReason) => {
+    if (reason === DisconnectReason.CLIENT_INITIATED) callbacks.current.onLeave();
+    else callbacks.current.onDisconnected(reason);
+  }, []);
+  const handleConnected = useCallback(() => callbacks.current.onConnected(), []);
+  const handleError = useCallback((e: Error) => setError(e.message), []);
+
+  const [mediaIntent, setMediaIntent] = useState({ audio: false, video: false });
+  useEffect(() => {
+    setMediaIntent((previous) => ({
+      audio: previous.audio && state.permissions?.microphone !== false,
+      video: previous.video && state.permissions?.camera !== false,
+    }));
+  }, [state.permissions?.microphone, state.permissions?.camera]);
   const [panel, setPanel] = useState<'chat' | 'people' | 'controls' | 'recordings' | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState('');
@@ -174,24 +220,15 @@ export function MeetingRoom({
                 iceTransportPolicy: connection.relayOnly ? 'relay' : 'all',
               },
             }}
-            audio={false}
-            video={false}
-            options={{
-              adaptiveStream: true,
-              dynacast: true,
-              audioCaptureDefaults: guestAudioCaptureDefaults(),
-              videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
-              publishDefaults: {
-                simulcast: true,
-                screenShareEncoding: { maxBitrate: 3000000, maxFramerate: 15 },
-              },
-            }}
-            onDisconnected={(reason) => {
-              if (reason === DisconnectReason.CLIENT_INITIATED) onLeave();
-              else onDisconnected();
-            }}
-            onError={(e) => setError(e.message)}
+            audio={mediaIntent.audio && state.permissions?.microphone !== false}
+            video={mediaIntent.video && state.permissions?.camera !== false}
+            options={roomOptions}
+            onDisconnected={handleDisconnected}
+            onError={handleError}
+            onConnected={handleConnected}
           >
+            <MediaIntentTracker onChange={setMediaIntent} />
+            <ReconnectionStatus retrying={reconnecting} onLeave={onLeave} />
             <VideoConference className="lk-video-conference remote-first-conference" />
             <GuestCallTools />
             <RoomAudioRenderer />
@@ -501,4 +538,60 @@ export function MeetingRoom({
       </footer>
     </div>
   );
+}
+
+function ReconnectionStatus({ retrying, onLeave }: { retrying: boolean; onLeave: () => void }) {
+  const connectionState = useConnectionState();
+  const { t } = useLanguage();
+  if (
+    !retrying &&
+    connectionState !== ConnectionState.Reconnecting &&
+    connectionState !== ConnectionState.SignalReconnecting
+  )
+    return null;
+  return (
+    <p role="status" className="muted room-reconnecting">
+      {t('Reconnecting to the meeting…')}{' '}
+      <button className="text-button" onClick={onLeave}>
+        {t('Leave meeting')}
+      </button>
+    </p>
+  );
+}
+
+function MediaIntentTracker({
+  onChange,
+}: {
+  onChange: React.Dispatch<React.SetStateAction<{ audio: boolean; video: boolean }>>;
+}) {
+  const room = useRoomContext();
+  useEffect(() => {
+    const update = (publication: TrackPublication, participant: Participant) => {
+      if (participant !== room.localParticipant || room.state !== ConnectionState.Connected) return;
+      const key =
+        publication.source === Track.Source.Microphone
+          ? 'audio'
+          : publication.source === Track.Source.Camera
+            ? 'video'
+            : null;
+      if (!key) return;
+      const enabled = !publication.isMuted;
+      onChange((previous) =>
+        previous[key] === enabled ? previous : { ...previous, [key]: enabled },
+      );
+    };
+    // Disconnect teardown unpublishes tracks before changing Room.state. Never
+    // interpret that cleanup as the user turning devices off.
+    room
+      .on(RoomEvent.LocalTrackPublished, update)
+      .on(RoomEvent.TrackMuted, update)
+      .on(RoomEvent.TrackUnmuted, update);
+    return () => {
+      room
+        .off(RoomEvent.LocalTrackPublished, update)
+        .off(RoomEvent.TrackMuted, update)
+        .off(RoomEvent.TrackUnmuted, update);
+    };
+  }, [room, onChange]);
+  return null;
 }

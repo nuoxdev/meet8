@@ -195,3 +195,17 @@
     min-height: 36px;
   }
 }
+
+.room-reconnecting {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline: 12px;
+  z-index: 20;
+  width: fit-content;
+  margin: 0 auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: #172523;
+  color: white;
+  pointer-events: auto;
+}

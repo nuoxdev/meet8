@@ -1,6 +1,13 @@
 export type Language = 'en' | 'ar';
 /** English source strings remain stable keys and preserve the default English interface. */
 export const arabic: Record<string, string> = {
+  'Reconnecting to the meeting…': 'جارٍ إعادة الاتصال بالاجتماع…',
+  'Unable to reconnect automatically. Check your connection and try again.':
+    'تعذرت إعادة الاتصال تلقائياً. تحقق من اتصالك وحاول مرة أخرى.',
+  'The meeting session changed. Please check with the host.':
+    'تغيرت جلسة الاجتماع. يُرجى مراجعة المضيف.',
+  'The media connection ended. Check with your host before reconnecting.':
+    'انتهى اتصال الصوت والفيديو. راجع المضيف قبل إعادة الاتصال.',
   'Meeting details': 'تفاصيل الاجتماع',
   'Save workshop permissions': 'حفظ صلاحيات ورشة العمل',
   'Workshop permissions saved.': 'تم حفظ صلاحيات ورشة العمل.',

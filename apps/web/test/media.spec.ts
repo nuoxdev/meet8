@@ -1,14 +1,36 @@
+import {
+  SignalResponse,
+  LeaveRequest,
+  LeaveRequest_Action,
+  DisconnectReason,
+} from '@livekit/protocol';
+import type { WebSocketRoute } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 import { test, expect, type Page } from '@playwright/test';
 test('two browsers exchange camera and microphone media, chat, and end together', async ({
   browser,
 }) => {
   test.skip(!process.env.LIVEKIT_URL, 'Run with local or dedicated test LiveKit configuration.');
-  test.setTimeout(process.env.MEET8_TEST_RECORDING === 'true' ? 180000 : 90000);
+  test.skip(
+    process.env.MEET8_TEST_GATEWAY_RECOVERY === 'true' &&
+      process.env.LIVEKIT_MODE !== 'self-hosted-gateway',
+    'Gateway recovery requires a dedicated local gateway SFU.',
+  );
+  test.setTimeout(process.env.MEET8_TEST_RECORDING === 'true' ? 240000 : 180000);
   const hostContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
   const guestContext = await browser.newContext({ permissions: ['camera', 'microphone'] });
   for (const c of [hostContext, guestContext])
     await c.addInitScript(() => {
+      const sockets: WebSocket[] = [];
+      (window as any).__meet8TestSockets = sockets;
+      const NativeSocket = window.WebSocket;
+      window.WebSocket = class extends NativeSocket {
+        constructor(...args: ConstructorParameters<typeof WebSocket>) {
+          super(...args);
+          if (new URL(String(args[0]), location.href).pathname.match(/\/rtc(?:\/v1)?$/))
+            sockets.push(this);
+        }
+      };
       const peers: RTCPeerConnection[] = [];
       (window as any).__meet8TestPeers = peers;
       const Original = window.RTCPeerConnection;
@@ -19,6 +41,11 @@ test('two browsers exchange camera and microphone media, chat, and end together'
         }
       };
     });
+  let guestSignaling: WebSocketRoute | undefined;
+  await guestContext.routeWebSocket(/\/media\/rtc(?:\/v1)?(?:\?|$)/, (socket) => {
+    guestSignaling = socket;
+    socket.connectToServer();
+  });
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
   await host.goto('/');
@@ -92,6 +119,27 @@ test('two browsers exchange camera and microphone media, chat, and end together'
       return result;
     });
   }
+  async function inboundReports(page: Page) {
+    return page.evaluate(async () => {
+      const reports: { id: string; kind: string; count: number }[] = [];
+      for (const [index, peer] of (
+        (window as any).__meet8TestPeers as RTCPeerConnection[]
+      ).entries()) {
+        (await peer.getStats()).forEach((report) => {
+          if (report.type === 'inbound-rtp' && ['audio', 'video'].includes(report.kind))
+            reports.push({
+              id: `${index}:${report.id}`,
+              kind: report.kind,
+              count:
+                report.kind === 'audio'
+                  ? (report.packetsReceived ?? 0)
+                  : (report.framesDecoded ?? 0),
+            });
+        });
+      }
+      return reports;
+    });
+  }
   for (const p of [host, guest]) {
     await expect
       .poll(async () => mediaReceived(p), { timeout: 30000 })
@@ -102,6 +150,130 @@ test('two browsers exchange camera and microphone media, chat, and end together'
     await expect
       .poll(async () => (await mediaReceived(p)).video, { timeout: 30000 })
       .toBeGreaterThan(0);
+  }
+  // Changing capture preferences must not replace the joined Room on the next session poll.
+  const guestMembershipCalls: string[] = [];
+  let guestConnectionRequests = 0;
+  guest.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/connection'))
+      guestConnectionRequests++;
+    if (request.method() === 'POST' && /\/(join|leave)$/.test(new URL(request.url()).pathname))
+      guestMembershipCalls.push(request.url());
+  });
+  const beforeNoise = await mediaReceived(host);
+  await guest.getByRole('button', { name: 'Call settings', exact: true }).click();
+  await guest.getByRole('button', { name: /Background noise cancellation/ }).click();
+  await guest.getByRole('button', { name: 'Close call settings', exact: true }).click();
+  await guest.waitForTimeout(6000); // Cross two authoritative 2.5-second session polls.
+  await expect(guest.locator('.lk-video-conference')).toBeVisible();
+  await expect
+    .poll(async () => (await mediaReceived(host)).audio)
+    .toBeGreaterThan(beforeNoise.audio);
+  await expect
+    .poll(async () => (await mediaReceived(host)).video)
+    .toBeGreaterThan(beforeNoise.video);
+  expect(guestMembershipCalls).toEqual([]);
+  if (process.env.MEET8_TEST_GATEWAY_RECOVERY === 'true') {
+    // Cross the initial 60-second JWT expiry, then interrupt only signaling.
+    // Native SDK resume must preserve the joined Room and published media.
+    await guest.waitForTimeout(65000);
+    const beforeDrop = await Promise.all([mediaReceived(host), mediaReceived(guest)]);
+    await guest.evaluate(() => {
+      const sockets = (window as any).__meet8TestSockets as WebSocket[];
+      const active = sockets.filter((socket) => socket.readyState === WebSocket.OPEN);
+      if (!active.length) throw new Error('No active signaling socket to interrupt');
+      for (const socket of active) socket.close(4000, 'Local regression signaling interruption');
+    });
+    for (const [index, p] of [host, guest].entries()) {
+      await expect(p.locator('.lk-video-conference')).toBeVisible();
+      await expect
+        .poll(async () => (await mediaReceived(p)).audio, { timeout: 30000 })
+        .toBeGreaterThan(beforeDrop[index].audio);
+      await expect
+        .poll(async () => (await mediaReceived(p)).video, { timeout: 30000 })
+        .toBeGreaterThan(beforeDrop[index].video);
+      await expect(p.getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await expect(p.getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    }
+    await expect
+      .poll(
+        () =>
+          guest.evaluate(
+            () =>
+              ((window as any).__meet8TestSockets as WebSocket[]).filter(
+                (s) => s.readyState === WebSocket.OPEN,
+              ).length,
+          ),
+        { timeout: 30000 },
+      )
+      .toBeGreaterThan(0);
+    expect(guestMembershipCalls).toEqual([]);
+    if (process.env.LIVEKIT_MODE === 'self-hosted-gateway') {
+      // Deliver an actual SFU protocol terminal network failure through the real
+      // SDK, then require fresh-token recovery and real outgoing media restoration.
+      if (!guestSignaling) throw new Error('Missing guest signaling route');
+      const beforeTerminalRequests = guestConnectionRequests;
+      const beforeTerminalReports = new Set(
+        (await inboundReports(host)).map((report) => report.id),
+      );
+      guestSignaling.send(
+        Buffer.from(
+          new SignalResponse({
+            message: {
+              case: 'leave',
+              value: new LeaveRequest({
+                action: LeaveRequest_Action.DISCONNECT,
+                reason: DisconnectReason.SIGNAL_CLOSE,
+              }),
+            },
+          }).toBinary(),
+        ),
+      );
+      await expect(guest.getByText('Reconnecting to the meeting…', { exact: false })).toBeVisible();
+      await expect(guest.getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+        { timeout: 20000 },
+      );
+      await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+        { timeout: 20000 },
+      );
+      await expect.poll(() => guestConnectionRequests).toBe(beforeTerminalRequests + 1);
+      // Identify newly subscribed RTP streams before sampling: old stream stats
+      // may remain briefly after republishing, and new tracks reset counters.
+      for (const kind of ['audio', 'video']) {
+        await expect
+          .poll(
+            async () =>
+              (await inboundReports(host)).some(
+                (report) =>
+                  report.kind === kind && !beforeTerminalReports.has(report.id) && report.count > 0,
+              ),
+            { timeout: 30000 },
+          )
+          .toBe(true);
+        const fresh = (await inboundReports(host)).find(
+          (report) =>
+            report.kind === kind && !beforeTerminalReports.has(report.id) && report.count > 0,
+        )!;
+        await expect
+          .poll(
+            async () =>
+              (await inboundReports(host)).find((report) => report.id === fresh.id)?.count ?? 0,
+            { timeout: 30000 },
+          )
+          .toBeGreaterThan(fresh.count);
+      }
+      expect(guestMembershipCalls).toEqual([]);
+    }
   }
   if (process.env.MEET8_TEST_EXPECT_RELAY === 'true') {
     const relayPeer = process.env.MEET8_TEST_RELAY_PEER_IP ?? '';
@@ -185,8 +357,53 @@ test('two browsers exchange camera and microphone media, chat, and end together'
     }
     await guest.screenshot({ path: `.superpowers/live-room-${width}.png` });
   }
-  await host.screenshot({ path: 'docs/meeting-room.png', fullPage: true });
-  await guest.getByRole('button', { name: 'Leave', exact: true }).click();
+  await host.screenshot({ path: '.superpowers/meeting-room-regression.png', fullPage: true });
+  if (
+    process.env.MEET8_TEST_GATEWAY_RECOVERY === 'true' &&
+    process.env.LIVEKIT_MODE === 'self-hosted-gateway'
+  ) {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let tokenPending = false;
+    let finishRoute!: () => void;
+    const routeFinished = new Promise<void>((resolve) => {
+      finishRoute = resolve;
+    });
+    await guest.route(`**/api/meet/${m.code}/connection`, async (route) => {
+      tokenPending = true;
+      await hold;
+      await route.continue();
+      finishRoute();
+    });
+    guestSignaling!.send(
+      Buffer.from(
+        new SignalResponse({
+          message: {
+            case: 'leave',
+            value: new LeaveRequest({
+              action: LeaveRequest_Action.DISCONNECT,
+              reason: DisconnectReason.SIGNAL_CLOSE,
+            }),
+          },
+        }).toBinary(),
+      ),
+    );
+    await expect.poll(() => tokenPending).toBe(true);
+    await expect(guest.getByRole('button', { name: 'Leave', exact: true })).toBeDisabled();
+    await guest.getByRole('button', { name: 'Leave meeting', exact: true }).click();
+    release();
+    await routeFinished;
+    await guest.unroute(`**/api/meet/${m.code}/connection`);
+    await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();
+    await guest.waitForTimeout(2800);
+    expect(
+      guestMembershipCalls.filter((url) => new URL(url).pathname.endsWith('/leave')),
+    ).toHaveLength(1);
+  } else {
+    await guest.getByRole('button', { name: 'Leave', exact: true }).click();
+  }
   await expect(guest.getByRole('button', { name: 'Join meeting', exact: true })).toBeVisible();
   await guest.getByRole('button', { name: 'Join meeting', exact: true }).click();
   await expect(guest.getByRole('button', { name: 'Camera', exact: true })).toBeVisible();
