@@ -38,3 +38,9 @@ Cloudflare references: [tunnel troubleshooting](https://developers.cloudflare.co
 - Opt-in real gateway media test passed in1.7 minutes: waited beyond65 seconds, forced a native signaling WebSocket closure, injected a terminal network disconnect into the real SDK, and verified fresh audio-packet/video-frame counters increased after republishing. Camera/microphone intent was restored; recovery made no additional join/leave request. Leave during a held token response cancelled recovery and issued one leave.
 - A separate manual-connection regression caught and fixed late token reuse after leaving. It passes with the full browser suite.
 - Typecheck and production compilation passed. Source build and deployment image/readiness are checked separately at rollout. Refreshing existing browser tabs is required to load the new client.
+
+### Rollout
+
+Deployed app/source image `5528f3be0508285795010e05c763e802c4632c7b` is healthy. Two fresh zero-participant checks preceded the app-only replacement. The SFU, database, recording worker and firewall were not restarted. The HTTP2 connector remained ready with four active connections and no network-unreachable/proxy-error entries in the new connector's observed log.
+
+The reported meeting page returned200 and rendered without browser errors; health returned `{ok:true}` and unsigned signaling was denied401. No diagnostic attendees or messages were inserted into the customer's meeting. Existing tabs must be refreshed to receive the corrected client; a fresh customer two-person retest remains the final user-side confirmation.
